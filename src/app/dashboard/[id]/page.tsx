@@ -85,7 +85,11 @@ export default function InvoiceDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    load();
+    const run = async () => {
+      await load();
+    };
+
+    void run();
   }, [load]);
 
   async function act(path: string, body?: Record<string, unknown>) {
@@ -285,7 +289,7 @@ export default function InvoiceDetailPage() {
 
             {invoice.status === "funded" && (
               <div className="mt-3 space-y-3">
-                <p className="text-xs text-slate-500">Record the buyer's payment (bank transfer by default) against the invoice.</p>
+                <p className="text-xs text-slate-500">Record the buyer&apos;s payment (bank transfer by default) against the invoice.</p>
                 <label className="block text-xs font-medium text-slate-600">
                   Amount paid
                   <input value={payAmount} onChange={(e) => setPayAmount(e.target.value)} type="number" step="0.01" className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" />

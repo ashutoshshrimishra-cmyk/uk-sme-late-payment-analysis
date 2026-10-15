@@ -1,0 +1,17 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/api/health/route": "/api/health",
+  "/api/invoices/[id]/confirm/route": "/api/invoices/[id]/confirm",
+  "/api/invoices/[id]/default/route": "/api/invoices/[id]/default",
+  "/api/invoices/[id]/fund/route": "/api/invoices/[id]/fund",
+  "/api/invoices/[id]/pay/route": "/api/invoices/[id]/pay",
+  "/api/invoices/[id]/risk/route": "/api/invoices/[id]/risk",
+  "/api/invoices/[id]/route": "/api/invoices/[id]",
+  "/api/invoices/route": "/api/invoices",
+  "/api/pool/route": "/api/pool",
+  "/dashboard/[id]/page": "/dashboard/[id]",
+  "/dashboard/page": "/dashboard",
+  "/page": "/",
+  "/pool/page": "/pool"
+}

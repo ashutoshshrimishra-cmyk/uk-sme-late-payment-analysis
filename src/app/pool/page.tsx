@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 type PoolStateRow = {
@@ -49,7 +49,7 @@ export default function PoolPage() {
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/pool", { cache: "no-store" });
@@ -59,11 +59,15 @@ export default function PoolPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    const run = async () => {
+      await load();
+    };
+
+    void run();
+  }, [load]);
 
   const deployed = state ? Number(state.totalDeployed) : 0;
   const balance = state ? Number(state.balance) : 0;

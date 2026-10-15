@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
 
@@ -47,7 +47,7 @@ export default function DashboardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [lastResult, setLastResult] = useState<{ error?: string; message?: string } | null>(null);
 
-  async function loadInvoices() {
+  const loadInvoices = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/invoices", { cache: "no-store" });
@@ -56,11 +56,15 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    loadInvoices();
-  }, []);
+    const run = async () => {
+      await loadInvoices();
+    };
+
+    void run();
+  }, [loadInvoices]);
 
   function fillDemoDefaults() {
     const due = new Date();
