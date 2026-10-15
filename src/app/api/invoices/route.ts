@@ -10,33 +10,43 @@ import { getOrCreatePoolState } from "@/lib/pool";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const rows = await db
-    .select({
-      id: invoices.id,
-      invoiceNumber: invoices.invoiceNumber,
-      smeName: invoices.smeName,
-      smeEmail: invoices.smeEmail,
-      amount: invoices.amount,
-      currency: invoices.currency,
-      dueDate: invoices.dueDate,
-      status: invoices.status,
-      riskScore: invoices.riskScore,
-      riskLabel: invoices.riskLabel,
-      advancePct: invoices.advancePct,
-      feePct: invoices.feePct,
-      advanceAmount: invoices.advanceAmount,
-      feeAmount: invoices.feeAmount,
-      amountPaid: invoices.amountPaid,
-      paypalMode: invoices.paypalMode,
-      createdAt: invoices.createdAt,
-      buyerName: buyers.name,
-      buyerCompany: buyers.company,
-    })
-    .from(invoices)
-    .leftJoin(buyers, eq(invoices.buyerId, buyers.id))
-    .orderBy(desc(invoices.createdAt));
+  try {
+    const rows = await db
+      .select({
+        id: invoices.id,
+        invoiceNumber: invoices.invoiceNumber,
+        smeName: invoices.smeName,
+        smeEmail: invoices.smeEmail,
+        amount: invoices.amount,
+        currency: invoices.currency,
+        dueDate: invoices.dueDate,
+        status: invoices.status,
+        riskScore: invoices.riskScore,
+        riskLabel: invoices.riskLabel,
+        advancePct: invoices.advancePct,
+        feePct: invoices.feePct,
+        advanceAmount: invoices.advanceAmount,
+        feeAmount: invoices.feeAmount,
+        amountPaid: invoices.amountPaid,
+        paypalMode: invoices.paypalMode,
+        createdAt: invoices.createdAt,
+        buyerName: buyers.name,
+        buyerCompany: buyers.company,
+      })
+      .from(invoices)
+      .leftJoin(buyers, eq(invoices.buyerId, buyers.id))
+      .orderBy(desc(invoices.createdAt));
 
-  return NextResponse.json({ invoices: rows });
+    return NextResponse.json({ invoices: rows });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        invoices: [],
+        error: error instanceof Error ? error.message : "Database unavailable",
+      },
+      { status: 503 },
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -156,7 +166,7 @@ export async function POST(request: Request) {
     status,
     note:
       status === "declined"
-        ? `AI risk score ${risk.score}/100 (${risk.label}) — below minimum threshold, funding declined.`
+        ? `AI risk score ${risk.score}/100 (${risk.label}): below minimum threshold, funding declined.`
         : `Invoice created and sent via PayPal Invoicing (${paypalResult.mode}). AI risk score ${risk.score}/100 (${risk.label}).`,
   });
 

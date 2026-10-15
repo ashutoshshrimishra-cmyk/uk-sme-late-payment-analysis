@@ -20,7 +20,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const note =
     deliveryProofNote.trim().length > 0
       ? deliveryProofNote.trim()
-      : "Delivery / purchase-order proof attached by buyer (simulated).";
+      : "Delivery / purchase-order proof attached by buyer.";
 
   const [updated] = await db
     .update(invoices)

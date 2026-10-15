@@ -1,6 +1,6 @@
 // Explainable, heuristic AI risk score.
 // This is a PROPOSED / demo scoring model, not trained on real default data
-// (see pitch deck, Slide 4: "AI default prediction — Proposed, no real default data").
+// (see pitch deck, Slide 4: "AI default prediction: Proposed, no real default data").
 //
 // Score runs 0-100 (higher = lower risk). Every contributing factor is
 // returned alongside its point impact so the UI can show a human-readable

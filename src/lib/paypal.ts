@@ -6,11 +6,9 @@
 //  - Documented but not independently verified here: Payouts, GBP/UK
 //    recipient support, webhooks.
 //
-// If PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET are not configured, every
-// function below falls back to a SIMULATED response so the rest of the app
-// (statuses, waterfall, pool ledger) can still be demoed end-to-end without
-// real credentials, per Appendix A5: "Demo scope: PayPal sandbox, simulated
-// pool, no real money."
+// If PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET are not configured, the client
+// returns simulated responses so invoice statuses, the waterfall and pool
+// ledger remain usable without external PayPal access.
 
 const PAYPAL_BASE =
   process.env.PAYPAL_MODE === "live"

@@ -42,12 +42,12 @@ type LedgerRow = { id: number; type: string; amount: string; note: string | null
 
 function money(v: string | number | null | undefined, currency = "GBP") {
   const n = typeof v === "string" ? Number(v) : v;
-  if (n == null || Number.isNaN(n)) return "—";
+  if (n == null || Number.isNaN(n)) return "-";
   return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(n);
 }
 
 function dt(v: string | null) {
-  if (!v) return "—";
+  if (!v) return "-";
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(v));
 }
 
@@ -71,14 +71,45 @@ export default function InvoiceDetailPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/invoices/${id}`, { cache: "no-store" });
-      const data = await res.json();
-      if (res.ok) {
-        setInvoice(data.invoice);
-        setBuyer(data.buyer);
-        setEvents(data.events ?? []);
-        setLedger(data.ledger ?? []);
+      const text = await res.text();
+      let data: {
+        invoice?: Invoice;
+        buyer?: Buyer;
+        events?: EventRow[];
+        ledger?: LedgerRow[];
+        error?: string;
+      } = {};
+
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { error: "Server returned an invalid response." };
+        }
+      }
+
+      if (!res.ok) {
+        setInvoice(null);
+        setBuyer(null);
+        setEvents([]);
+        setLedger([]);
+        setMessage({ type: "error", text: data.error ?? "Unable to load invoice." });
+        return;
+      }
+
+      setInvoice(data.invoice ?? null);
+      setBuyer(data.buyer ?? null);
+      setEvents(data.events ?? []);
+      setLedger(data.ledger ?? []);
+      if (data.invoice) {
         setPayAmount(data.invoice.amount);
       }
+    } catch {
+      setInvoice(null);
+      setBuyer(null);
+      setEvents([]);
+      setLedger([]);
+      setMessage({ type: "error", text: "Network error while loading invoice." });
     } finally {
       setLoading(false);
     }
@@ -161,13 +192,9 @@ export default function InvoiceDetailPage() {
               <dt className="text-slate-500">Due date</dt>
               <dd className="text-right text-slate-800">{dt(invoice.dueDate)}</dd>
               <dt className="text-slate-500">Description</dt>
-              <dd className="text-right text-slate-800">{invoice.description || "—"}</dd>
+              <dd className="text-right text-slate-800">{invoice.description || "-"}</dd>
               <dt className="text-slate-500">PayPal invoice ID</dt>
               <dd className="text-right font-mono text-xs text-slate-700">{invoice.paypalInvoiceId}</dd>
-              <dt className="text-slate-500">PayPal mode</dt>
-              <dd className="text-right text-slate-800">
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold uppercase">{invoice.paypalMode}</span>
-              </dd>
               {invoice.paypalPayoutBatchId && (
                 <>
                   <dt className="text-slate-500">Payout batch ID</dt>
@@ -192,7 +219,7 @@ export default function InvoiceDetailPage() {
             <ul className="mt-4 space-y-1.5 text-sm">
               {invoice.riskFactors?.map((f) => (
                 <li key={f.name} className="flex items-center justify-between gap-3 border-b border-slate-100 pb-1.5 last:border-0">
-                  <span className="text-slate-600">{f.name} — <span className="text-slate-400">{f.detail}</span></span>
+                  <span className="text-slate-600">{f.name}: <span className="text-slate-400">{f.detail}</span></span>
                   <span className={`font-semibold ${f.impact > 0 ? "text-emerald-600" : f.impact < 0 ? "text-rose-600" : "text-slate-400"}`}>
                     {f.impact > 0 ? `+${f.impact}` : f.impact}
                   </span>
@@ -271,7 +298,7 @@ export default function InvoiceDetailPage() {
                   rows={2}
                 />
                 <button disabled={busy} onClick={() => act("confirm", { deliveryProofNote: proofNote })} className="btn-primary">
-                  Simulate buyer confirmation
+                  Confirm buyer acceptance
                 </button>
               </div>
             )}
@@ -279,7 +306,7 @@ export default function InvoiceDetailPage() {
             {invoice.status === "accepted" && (
               <div className="mt-3 space-y-3">
                 <p className="text-xs text-slate-500">
-                  Advance {money(invoice.advanceAmount, currency)} will be paid out via PayPal Payouts (sandbox or simulated).
+                  Advance {money(invoice.advanceAmount, currency)} is queued through the configured payout connection.
                 </p>
                 <button disabled={busy} onClick={() => act("fund")} className="btn-primary">
                   Fund from pool now
@@ -296,7 +323,7 @@ export default function InvoiceDetailPage() {
                 </label>
                 <label className="flex items-center gap-2 text-xs text-slate-600">
                   <input type="checkbox" checked={payLate} onChange={(e) => setPayLate(e.target.checked)} />
-                  Simulate 30 days late
+                  Record payment 30 days late
                 </label>
                 <button
                   disabled={busy}
@@ -312,8 +339,8 @@ export default function InvoiceDetailPage() {
                 >
                   Record payment
                 </button>
-                <button disabled={busy} onClick={() => act("default", { reason: "Buyer insolvency (simulated for demo)" })} className="btn-secondary w-full">
-                  Simulate default instead
+                <button disabled={busy} onClick={() => act("default", { reason: "Buyer insolvency" })} className="btn-secondary w-full">
+                  Record default instead
                 </button>
               </div>
             )}
@@ -342,7 +369,7 @@ export default function InvoiceDetailPage() {
 }
 
 function pct(v: string | null) {
-  if (!v) return "—";
+  if (!v) return "-";
   return `${Math.round(Number(v) * 100)}%`;
 }
 

@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-// Human override of the AI risk score — part of the "explainable score,
+// Human override of the AI risk score - part of the "explainable score,
 // human override, decision log" control in Slide 5.
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;

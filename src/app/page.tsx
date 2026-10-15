@@ -1,438 +1,225 @@
 import Link from "next/link";
 
-function Kicker({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mb-3 inline-block rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700">
-      {children}
-    </p>
-  );
-}
-
-function Section({
-  id,
-  children,
-  className = "",
-}: {
-  id?: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <section id={id} className={`mx-auto max-w-7xl px-6 py-16 ${className}`}>
-      {children}
-    </section>
-  );
-}
-
-function StatCard({ value, label, note }: { value: string; label: string; note?: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="text-3xl font-bold text-slate-900">{value}</div>
-      <div className="mt-1 text-sm font-medium text-slate-700">{label}</div>
-      {note && <div className="mt-2 text-xs text-slate-500">{note}</div>}
-    </div>
-  );
-}
-
-function Table({ head, rows }: { head: string[]; rows: (string | React.ReactNode)[][] }) {
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-        <thead>
-          <tr className="bg-slate-50 text-slate-600">
-            {head.map((h) => (
-              <th key={h} className="border-b border-slate-200 px-4 py-3 font-semibold">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className="odd:bg-white even:bg-slate-50/60">
-              {row.map((cell, j) => (
-                <td key={j} className="border-b border-slate-100 px-4 py-3 align-top text-slate-700">
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function Pill({ children, tone = "slate" }: { children: React.ReactNode; tone?: "slate" | "amber" | "emerald" | "rose" }) {
-  const tones: Record<string, string> = {
-    slate: "bg-slate-100 text-slate-700",
-    amber: "bg-amber-100 text-amber-800",
-    emerald: "bg-emerald-100 text-emerald-800",
-    rose: "bg-rose-100 text-rose-700",
-  };
-  return <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone]}`}>{children}</span>;
-}
+const figures = [
+    { value: "£11bn", label: "Late-payment cost to the UK economy", note: "Modelled estimate" },
+    { value: "28%", label: "of UK businesses affected each year", note: "1.5m+ firms" },
+    { value: "17.48m", label: "Overdue invoices in Q1 2026", note: "+3% YoY" },
+    { value: "24–48", unit: "h", label: "Target advance time", note: "vs 30–90 day payment" },
+];
 
 export default function HomePage() {
-  return (
-    <main>
-      {/* HERO */}
-      <div className="border-b border-slate-200 bg-gradient-to-b from-indigo-50 via-white to-white">
-        <Section className="py-20">
-          <Kicker>Slide 1 · Problem</Kicker>
-          <h1 className="max-w-4xl text-[clamp(2rem,4.5vw,3.5rem)] font-bold leading-[1.08] tracking-tight text-slate-950">
-            Profitable UK small firms fail because customers pay late, and invoice finance reaches
-            very few of them.
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg text-slate-600">
-            A working PayPal-sandbox demo: AI-scored, buyer-confirmed invoices, funded from a
-            simulated investor pool, in 24–48 hours instead of 30–90 days.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/dashboard" className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-700">
-              Try the live SME demo
-            </Link>
-            <Link href="/pool" className="rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50">
-              View investor pool
-            </Link>
-          </div>
-        </Section>
-      </div>
+    return (
+        <div className="pitch-page relative isolate flex min-h-screen flex-col overflow-hidden bg-gradient-to-br from-emerald-700/70 via-teal-700/60 to-sky-800/60 text-white">
+            <div className="absolute inset-0 bg-black/20" aria-hidden="true" />
+            <nav className="relative z-20 w-full px-6 pb-4 pt-8 md:px-12 xl:px-20">
+                <Link href="/" className="inline-flex items-center gap-2 text-2xl font-black text-white">
+                    <span>Fast</span>
+                    <span className="font-bold text-white/80">Finance</span>
+                    <span className="ml-1 rounded-md bg-white px-2 py-1 text-xs font-bold text-blue-700">UK</span>
+                </Link>
+            </nav>
 
-      {/* SLIDE 1 - DATA */}
-      <Section>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard value="≈£11bn/yr" label="Cost of late payment to the UK economy" note="Modelled estimate, not a headcount" />
-          <StatCard value="~14,000" label="Business closures/yr linked to late payment" note="≈38 a day · ~1 in 20 of ~280k 2024 closures" />
-          <StatCard value="28%" label="of UK businesses affected each year" note="Over 1.5 million firms; SMEs hit harder (49% vs 36%)" />
-          <StatCard value="17.48m" label="Overdue invoices, Q1 2026" note="+3% YoY · 1.57m businesses with overdue bills" />
-          <StatCard value="62.6%" label="of SME invoices paid late in the last year" note="43.1% of owners wrote off money owed" />
-          <StatCard value="~45,000" label="UK businesses use invoice finance today" note="≈3% of the 1.57m with overdue bills" />
-          <StatCard value="£50K–£500K" label="Typical minimum turnover to qualify" note="Entry barrier for the smallest firms" />
-          <StatCard value="3–5%" label="Typical cost of single-invoice finance" note="Plus minimum charges & termination fees" />
+            <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col items-center gap-12 px-6 pb-16 pt-8 md:px-12 lg:flex-row lg:items-start lg:gap-8 lg:pt-10 xl:px-20">
+                <section className="hero relative z-10 flex w-full flex-col justify-center pt-4 lg:w-3/5 lg:pt-8">
+                    <h1 className="font-display mb-6 max-w-3xl select-none text-4xl font-bold uppercase leading-tight tracking-normal text-white sm:text-5xl lg:text-6xl">
+                        SME Working<br />Capital
+                    </h1>
+
+                    <p className="mb-10 max-w-xl select-none text-base font-medium text-white/90 sm:text-lg">
+                        Faster cash for SMEs when buyers pay late.
+                    </p>
+
+                    <div className="relative z-20 mb-10 flex flex-col gap-3 items-center sm:flex-row">
+                        <Link
+                            href="/dashboard"
+                            className="inline-flex items-center justify-center h-12 px-8 rounded-full text-sm font-semibold uppercase tracking-wide text-white bg-white/15 border border-white/60 backdrop-blur-sm hover:bg-white/25 transition-colors duration-200"
+                        >
+                            Open SME dashboard
+                        </Link>
+                        <Link
+                            href="/pool"
+                            className="inline-flex items-center justify-center h-12 px-8 rounded-full text-sm font-semibold uppercase tracking-wide text-white bg-white/15 border border-white/60 backdrop-blur-sm hover:bg-white/25 transition-colors duration-200"
+                        >
+                            View investor pool
+                        </Link>
+                    </div>
+
+                    <div className="relative mx-auto w-full max-w-[340px] sm:max-w-[560px] lg:mx-0">
+                        <div className="relative aspect-[16/10] w-full rounded-t-2xl bg-gray-900 p-2">
+                            <div className="relative h-full w-full overflow-hidden rounded-sm bg-slate-200">
+                                <div className="absolute left-0 top-0 h-full w-0 animate-[sweep_6s_ease-in-out_forwards] overflow-hidden motion-reduce:w-full">
+                                    <div className="absolute inset-y-0 left-0 w-[calc(100%/var(--p,1))]" />
+                                    <div className="relative h-full w-[324px] overflow-hidden bg-slate-50 p-2 text-slate-800 sm:w-[544px] sm:p-4">
+                                        <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 sm:pb-2">
+                                            <div className="flex items-center gap-1.5 sm:gap-2">
+                                                <div className="grid h-4 w-4 place-items-center rounded bg-emerald-700 text-[7px] font-bold text-white sm:h-7 sm:w-7 sm:text-xs">F</div>
+                                                <div>
+                                                    <p className="text-[5px] font-semibold uppercase text-slate-500 sm:text-[8px]">Fast Finance</p>
+                                                    <p className="text-[8px] font-semibold sm:text-sm">Account overview</p>
+                                                </div>
+                                            </div>
+                                            <div className="rounded border border-slate-200 bg-white px-1.5 py-1 text-[5px] text-slate-500 sm:px-2 sm:text-[8px]">15 Oct 2026 · GBP</div>
+                                        </div>
+
+                                        <div className="mt-1.5 grid grid-cols-3 gap-1 sm:mt-3 sm:gap-2">
+                                            <div className="rounded border border-slate-200 bg-white p-1 sm:p-2">
+                                                <p className="text-[5px] text-slate-500 sm:text-[8px]">Available balance</p>
+                                                <p className="mt-0.5 text-[8px] font-bold sm:text-sm">£24,680</p>
+                                                <p className="text-[5px] text-emerald-700 sm:text-[8px]">+8.4% this month</p>
+                                            </div>
+                                            <div className="rounded border border-slate-200 bg-white p-1 sm:p-2">
+                                                <p className="text-[5px] text-slate-500 sm:text-[8px]">Outstanding</p>
+                                                <p className="mt-0.5 text-[8px] font-bold sm:text-sm">£12,450</p>
+                                                <p className="text-[5px] text-slate-500 sm:text-[8px]">6 invoices</p>
+                                            </div>
+                                            <div className="rounded border border-slate-200 bg-white p-1 sm:p-2">
+                                                <p className="text-[5px] text-slate-500 sm:text-[8px]">Due this week</p>
+                                                <p className="mt-0.5 text-[8px] font-bold sm:text-sm">£6,800</p>
+                                                <p className="text-[5px] text-amber-700 sm:text-[8px]">3 invoices</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-1.5 grid h-[70px] grid-cols-[1.6fr_1fr] gap-1 sm:mt-2 sm:h-[120px] sm:gap-2">
+                                            <div className="rounded border border-slate-200 bg-white p-1 sm:p-2">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-[6px] font-semibold sm:text-[10px]">Cash flow</p>
+                                                    <p className="text-[5px] text-slate-400 sm:text-[8px]">Last 30 days</p>
+                                                </div>
+                                                <div className="mt-1 flex h-[35px] items-end gap-1 sm:h-[72px]">
+                                                    {[35, 48, 42, 62, 55, 72, 58, 82, 68, 92, 76, 100].map((height, index) => (
+                                                        <div key={index} className="flex-1 rounded-t-[1px] bg-emerald-600" style={{ height: `${height}%` }} />
+                                                    ))}
+                                                </div>
+                                                <div className="mt-0.5 flex justify-between text-[5px] text-slate-400 sm:text-[7px]">
+                                                    <span>16 Sep</span><span>30 Sep</span><span>15 Oct</span>
+                                                </div>
+                                            </div>
+                                            <div className="rounded border border-slate-200 bg-white p-1 sm:p-2">
+                                                <p className="text-[6px] font-semibold sm:text-[10px]">Invoice status</p>
+                                                <div className="mt-1 space-y-1 text-[5px] sm:mt-2 sm:space-y-2 sm:text-[8px]">
+                                                    <div className="flex justify-between"><span className="text-slate-500">Paid</span><span className="font-semibold text-emerald-700">12</span></div>
+                                                    <div className="flex justify-between"><span className="text-slate-500">Pending</span><span className="font-semibold text-amber-700">6</span></div>
+                                                    <div className="flex justify-between"><span className="text-slate-500">Overdue</span><span className="font-semibold text-rose-700">2</span></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-1.5 rounded border border-slate-200 bg-white p-1 sm:mt-2 sm:p-2">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-[6px] font-semibold sm:text-[10px]">Recent invoices</p>
+                                                <p className="text-[5px] text-emerald-700 sm:text-[8px]">View all</p>
+                                            </div>
+                                            <div className="mt-1 flex justify-between border-t border-slate-100 pt-1 text-[5px] sm:text-[8px]">
+                                                <span className="text-slate-600">Riverside Joinery</span><span className="font-semibold">£4,200</span><span className="text-emerald-700">Paid</span>
+                                            </div>
+                                            <div className="mt-0.5 flex justify-between text-[5px] sm:text-[8px]">
+                                                <span className="text-slate-600">Northstar Supplies</span><span className="font-semibold">£2,600</span><span className="text-amber-700">Pending</span>
+                                            </div>
+                                        </div>
+                                        <div className="group absolute right-0 top-0 z-10 h-full w-[120px] animate-[fadeOut_0.8s_ease-in_6s_forwards] sm:w-[160px]">
+                                            <div className="absolute inset-y-0 left-0 right-0 overflow-hidden rounded-l-md bg-slate-50 px-1.5 pb-4 pt-5 text-slate-800 sm:px-2 sm:pt-6">
+                                                <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="grid h-3 w-3 place-items-center rounded-sm bg-emerald-700 text-[5px] font-bold text-white sm:h-4 sm:w-4 sm:text-[7px]">F</span>
+                                                        <span className="text-[6px] font-semibold sm:text-[8px]">Overview</span>
+                                                    </div>
+                                                    <span className="h-1 w-1 rounded-full bg-emerald-600" />
+                                                </div>
+
+                                                <div className="mt-1.5">
+                                                    <p className="text-[5px] text-slate-500 sm:text-[7px]">Available balance</p>
+                                                    <p className="text-[11px] font-bold sm:text-sm">£24,680</p>
+                                                    <p className="text-[5px] font-medium text-emerald-700 sm:text-[7px]">+8.4% this month</p>
+                                                </div>
+
+                                                <div className="mt-1.5 rounded border border-slate-200 bg-white p-1 sm:mt-2 sm:p-1.5">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[5px] font-semibold sm:text-[7px]">Cash flow</span>
+                                                        <span className="text-[4px] text-slate-400 sm:text-[6px]">30 days</span>
+                                                    </div>
+                                                    <div className="mt-1 flex h-7 items-end gap-0.5 sm:h-10 sm:gap-1">
+                                                        {[35, 48, 42, 62, 55, 72, 58, 82, 68, 92, 76, 100].map((height, index) => (
+                                                            <div key={index} className="flex-1 rounded-t-[1px] bg-emerald-600" style={{ height: `${height}%` }} />
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-1.5 rounded border border-slate-200 bg-white p-1 sm:mt-2 sm:p-1.5">
+                                                    <div className="flex items-center justify-between text-[5px] sm:text-[7px]">
+                                                        <span className="text-slate-500">Due this week</span>
+                                                        <span className="font-semibold text-slate-800">£6,800</span>
+                                                    </div>
+                                                    <div className="mt-1 flex items-center justify-between border-t border-slate-100 pt-1 text-[5px] sm:text-[7px]">
+                                                        <span className="text-slate-500">Open invoices</span>
+                                                        <span className="font-semibold text-slate-800">6</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="absolute inset-0 rounded-l-lg rounded-r-none border-[3px] border-r-0 border-gray-900 transition-colors duration-200 group-hover:border-[#C9A227] group-hover:shadow-[0_0_20px_rgba(201,162,39,0.35)]" />
+                                            <div className="absolute left-1/2 top-1.5 h-3 w-10 -translate-x-1/2 rounded-full bg-gray-900" />
+                                            <div className="absolute bottom-1.5 left-1/2 h-0.5 w-10 -translate-x-1/2 rounded-full bg-gray-900/70" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="relative mx-auto h-3 w-full rounded-b-2xl bg-gray-800 shadow-xl">
+                            <div className="absolute left-1/2 top-0 h-1 w-20 -translate-x-1/2 rounded-b bg-gray-600" />
+                        </div>
+                    </div>
+                </section>
+
+                <section className="relative z-30 flex w-full justify-center lg:w-2/5 lg:justify-end lg:pt-12">
+                    <div className="w-full max-w-md select-none space-y-5 rounded-2xl border border-slate-200/60 bg-white p-5 text-slate-900 shadow-lg sm:p-6">
+                        <section className="space-y-5">
+                            <h2 className="font-display text-lg font-semibold tracking-normal text-slate-900 sm:text-xl">Why this matters</h2>
+                            <p className="text-sm leading-relaxed text-slate-600">
+                                Don&apos;t wait 90 days to be paid. Unlock cash from unpaid invoices, with no lock-ins or minimum fees.
+                            </p>
+                        </section>
+
+                        <hr className="border-slate-100" />
+
+                        <section className="space-y-5">
+                            <h2 className="font-display text-lg font-semibold tracking-normal text-slate-900 sm:text-xl">How the app works</h2>
+                            <ol className="space-y-3">
+                                {[
+                                    "Upload an invoice",
+                                    "Get an AI risk score",
+                                    "Buyer confirms acceptance",
+                                    "Receive funds from the pool",
+                                    "Track repayment",
+                                ].map((step, index) => (
+                                    <li key={step} className="flex items-start gap-3">
+                                        <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                                            {index + 1}
+                                        </span>
+                                        <span className="text-sm font-medium text-slate-700">{step}</span>
+                                    </li>
+                                ))}
+                            </ol>
+                        </section>
+                    </div>
+                </section>
+            </main>
+
+            <section aria-label="Late-payment figures" className="relative z-20 mt-auto border-t border-white/10 bg-black/20 backdrop-blur-md">
+                <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-6 py-8 md:grid-cols-4 md:px-12 xl:px-20">
+                    {figures.map((figure) => (
+                        <div key={figure.label} className="border-l border-white/10 px-4 first:border-l-0 first:pl-0">
+                            <div className="font-display mb-1 text-3xl font-bold text-white sm:text-4xl">
+                                {figure.value}
+                                {figure.unit && <span className="text-xl">{figure.unit}</span>}
+                            </div>
+                            <div className="text-xs font-medium leading-tight text-white/80 sm:text-sm">
+                                {figure.label}
+                            </div>
+                            <div className="mt-1 text-[10px] uppercase text-white/50">{figure.note}</div>
+                        </div>
+                    ))}
+                </div>
+            </section>
         </div>
-
-        <div className="mt-10 grid gap-8 lg:grid-cols-2">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">Why profitable firms still close</h2>
-            <p className="mt-3 text-slate-600">
-              Wages, suppliers and VAT fall due on fixed dates, but customer cash arrives 30–90 days
-              later. A firm can be profitable on paper and still run out of cash.
-            </p>
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">The existing gap</h2>
-            <div className="mt-3">
-              <Table
-                head={["Gap", "Evidence"]}
-                rows={[
-                  ["Low reach", "~45,000 UK businesses use invoice finance vs 1.57m with overdue bills (~3%, rough calc)"],
-                  ["Entry barriers", "Minimum turnover £50K–£500K depending on provider"],
-                  ["Costly for one-off use", "Single-invoice finance typically 3–5% of invoice value"],
-                  ["Lock-ins", "Minimum monthly charges & termination fees, often 3–6 months' service charge"],
-                  ["Law not in force yet", "Bill caps terms at 60 days (30 public bodies), expected no earlier than 2027"],
-                  ["Data gap", "Government holds no data on average amount owed to SMEs in overdue invoices"],
-                ]}
-              />
-            </div>
-          </div>
-        </div>
-        <p className="mt-6 text-xs text-slate-500">
-          Sources: DBT/OSBC–London Economics (Jul 2025), R3 Q1 2026, FreeAgent, UK Finance, Spark
-          Finance, Hansard WQ 7647.
-        </p>
-      </Section>
-
-      {/* SLIDE 2 - SOLUTION */}
-      <Section className="border-t border-slate-200 bg-slate-50/60">
-        <Kicker>Slide 2 · Solution</Kicker>
-        <h2 className="max-w-3xl text-3xl font-bold tracking-tight text-slate-950">
-          Selective financing of buyer-confirmed invoices: PayPal for invoicing and payout, AI for
-          risk.
-        </h2>
-
-        <div className="mt-10 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <ol className="grid min-w-[840px] grid-cols-5 gap-3 text-sm">
-            {[
-              ["SME", "Uploads invoice details"],
-              ["Our App + AI", "Extracts data, checks duplicate/fraud, scores risk"],
-              ["PayPal", "Creates & sends the invoice to the buyer"],
-              ["Buyer", "Confirms in-app + delivery proof (not a PayPal feature)"],
-              ["Pool (simulated)", "Prices it and advances 70–85% to the SME"],
-            ].map(([who, what], i) => (
-              <li key={who} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-xs font-semibold text-indigo-600">Step {i + 1}</div>
-                <div className="mt-1 font-semibold text-slate-900">{who}</div>
-                <div className="mt-1 text-xs text-slate-600">{what}</div>
-              </li>
-            ))}
-          </ol>
-          <div className="mt-4 grid min-w-[840px] grid-cols-3 gap-3 text-sm">
-            {[
-              ["6", "Payout via PayPal Payouts (sandbox) reaches the SME"],
-              ["7", "Buyer pays the balance by bank transfer on the due date"],
-              ["8–9", "Payment recorded on the invoice; waterfall splits principal, investor return and SME balance"],
-            ].map(([n, what]) => (
-              <div key={n} className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-4">
-                <div className="text-xs font-semibold text-indigo-600">Step {n}</div>
-                <div className="mt-1 text-xs text-slate-700">{what}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-8">
-          <Table
-            head={["Status", "Event", "Money"]}
-            rows={[
-              ["Uploaded", "Invoice created in PayPal", "None"],
-              ["Accepted", "Buyer confirms in our app (not a PayPal feature)", "None"],
-              ["Funded", "Pool advances 70–85%", "Pool → SME"],
-              ["Paid", "Bank payment received and recorded on invoice", "Buyer → Pool, balance to SME"],
-            ]}
-          />
-        </div>
-      </Section>
-
-      {/* SLIDE 3 */}
-      <Section>
-        <Kicker>Slide 3 · How the solution closes the gap</Kicker>
-        <h2 className="max-w-3xl text-3xl font-bold tracking-tight text-slate-950">
-          Each gap maps to one feature, and PayPal supplies the invoice and payout rails.
-        </h2>
-        <div className="mt-8">
-          <Table
-            head={["Gap", "Our fix", "PayPal's utility"]}
-            rows={[
-              ["Entry barriers, lock-ins", "Per-invoice funding, no contract, no minimum fee", "Developer sandbox, no bank integration to start"],
-              ["Slow cash", "Advance after buyer confirmation (target: 24–48 hrs)", "Payouts sends the advance"],
-              ["No trusted invoice record", "Real invoice with ID, buyer confirmation, delivery proof", "Invoicing creates, sends and reminds"],
-              ["Status opacity", "One status trail", "Recording a payment marks the invoice PAID, or PARTIALLY PAID if some amount remains"],
-              ["Collection cost", "Buyer pays by bank transfer", "API accepts BANK_TRANSFER as a recorded payment method, avoiding the % card fee"],
-            ]}
-          />
-        </div>
-        <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-          <strong>Closures, honest framing:</strong> We cannot prove closures will fall. We can say
-          the cash gap on a financed invoice shrinks from up to 60 days to a target of 1–2 days.
-          Even 1% of 14,000 closures is 140 firms a year — a <strong>sensitivity example, not a forecast</strong>.
-        </div>
-      </Section>
-
-      {/* SLIDE 4 */}
-      <Section className="border-t border-slate-200 bg-slate-50/60">
-        <Kicker>Slide 4 · Innovation and feasibility</Kicker>
-        <h2 className="max-w-3xl text-3xl font-bold tracking-tight text-slate-950">
-          Simple to build in 29 days, novel in how proof, risk and cash are linked.
-        </h2>
-
-        <div className="mt-8 grid gap-8 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-semibold text-slate-900">Innovation</h3>
-            <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-700">
-              <li>Buyer confirmation plus delivery proof as the evidence layer — no blockchain.</li>
-              <li>AI invoice extraction, duplicate/fraud checks and an explainable risk score.</li>
-              <li>Pricing agent that sets fee and advance % per invoice, and chases the buyer (Agentic Commerce angle).</li>
-              <li>
-                Late-interest design: the Bill sets statutory interest at 8% above base rate, which
-                the pool can share <em>once enacted</em>.
-              </li>
-            </ol>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-semibold text-slate-900">Desirability · Feasibility · Viability</h3>
-            <div className="mt-4 grid grid-cols-3 gap-3 text-center text-xs">
-              <div className="rounded-xl bg-indigo-50 p-4">
-                <div className="font-semibold text-indigo-700">Desirability</div>
-                <div className="mt-1 text-slate-600">1.57m firms with overdue bills</div>
-              </div>
-              <div className="rounded-xl bg-emerald-50 p-4">
-                <div className="font-semibold text-emerald-700">Feasibility</div>
-                <div className="mt-1 text-slate-600">PayPal sandbox + AI API, no bank needed</div>
-              </div>
-              <div className="rounded-xl bg-amber-50 p-4">
-                <div className="font-semibold text-amber-700">Viability</div>
-                <div className="mt-1 text-slate-600">Fee 1.83%–3% covers cost (Slide 6)</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-8">
-          <Table
-            head={["Claim", "Label"]}
-            rows={[
-              ["Status tracking, external payment recording", <Pill tone="emerald" key="a">Demonstrated in sandbox</Pill>],
-              ["24–48 hr advance", <Pill tone="amber" key="b">Target</Pill>],
-              ["AI default prediction", <Pill tone="rose" key="c">Proposed — no real default data, heuristic score</Pill>],
-              ["Investor 10% return", <Pill tone="rose" key="d">Assumption — sources are 2015–17</Pill>],
-            ]}
-          />
-        </div>
-
-        <div className="mt-8 grid gap-3 sm:grid-cols-4">
-          {["Week 1 — Invoicing + Payouts flow", "Week 2 — AI risk layer", "Week 3 — Waterfall & dashboard", "Week 4 — Repo, licence, README, 3-min video"].map((s) => (
-            <div key={s} className="rounded-xl border border-slate-200 bg-white p-4 text-sm font-medium text-slate-700 shadow-sm">
-              {s}
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* SLIDE 5 */}
-      <Section>
-        <Kicker>Slide 5 · Risk mitigation and strategy</Kicker>
-        <h2 className="max-w-3xl text-3xl font-bold tracking-tight text-slate-950">
-          Buyer acceptance is evidence, not a guarantee, so risk is controlled in layers.
-        </h2>
-        <div className="mt-8">
-          <Table
-            head={["Risk", "Control"]}
-            rows={[
-              ["Dispute or delivery problem", "Delivery/PO proof, dispute window, buyer dispute history"],
-              ["Buyer late or insolvent", "Buyer credit check, advance 70–85% by score, concentration cap (max 20% of pool per buyer, assumption)"],
-              ["Fake or duplicate invoice", "Invoice hash check, no funding without confirmation, per-SME limit"],
-              ["\u201cPaid\u201d status wrong", "Bank-side confirmation (simulated in sandbox)"],
-              ["Card fee kills margin", "Leg 2 by bank transfer, recorded via API"],
-              ["Regulation (FCA, pooling, PayPal lending policy)", "Unverified. Simulated pool now, authorised partner later"],
-              ["AI error or bias", "Explainable score, human override, decision log"],
-            ]}
-          />
-        </div>
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-semibold text-slate-900">Default loss waterfall (proposed)</h3>
-            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-700">
-              <li>Recourse to SME</li>
-              <li>First-loss reserve of platform / financer partner</li>
-              <li>Senior investor last</li>
-            </ol>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-semibold text-slate-900">Strategy</h3>
-            <ul className="mt-3 space-y-1 text-sm text-slate-700">
-              <li><strong>Phase 1</strong> — sandbox demo</li>
-              <li><strong>Phase 2</strong> — pilot with one licensed financer, 20–50 invoices</li>
-              <li><strong>Phase 3</strong> — institutional pool once loss data exists</li>
-            </ul>
-          </div>
-        </div>
-      </Section>
-
-      {/* SLIDE 6 */}
-      <Section className="border-t border-slate-200 bg-slate-50/60">
-        <Kicker>Slide 6 · Stakeholders and business model</Kicker>
-        <h2 className="max-w-3xl text-3xl font-bold tracking-tight text-slate-950">
-          The fee must cover investor return, loss and cost: minimum 1.83%, assumed 3%.
-        </h2>
-
-        <p className="mt-4 max-w-3xl text-slate-600">
-          Market check: total invoice-factoring charges are typically 1–5% of invoice value, with
-          70–90% advanced. Older sources cite investor gross yields of 8–15% with 1–3% annual
-          losses.
-        </p>
-
-        <h3 className="mt-8 font-semibold text-slate-900">
-          Unit economics: £10,000 invoice, 60 days, 85% advance (£8,500). All assumptions.
-        </h3>
-        <div className="mt-3">
-          <Table
-            head={["Item", "Calculation", "£"]}
-            rows={[
-              ["SME fee", "3% of £10,000", "300.00"],
-              ["Investor return Y", "10% × £8,500 × 60/365", "139.73"],
-              ["Expected loss D", "2% × £8,500 × 60/365", "27.95"],
-              ["Cost F", "payout 0.75 + credit data 4 + AI/compute 5 + ops 5", "15.00"],
-              ["Margin M", "", "117.32"],
-            ]}
-          />
-        </div>
-
-        <div className="mt-6">
-          <Table
-            head={["Scenario", "Margin"]}
-            rows={[
-              ["Buyer pays on time by bank transfer", "+£117.32"],
-              ["Buyer pays via PayPal at ~2.9% + £0.30 (third-party figure, verify)", "−£172.98"],
-              ["Buyer 30 days late, platform absorbs extra investor accrual", "+£47.46"],
-              ["Buyer defaults", "See default waterfall, Slide 5"],
-            ]}
-          />
-        </div>
-
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-700 shadow-sm">
-          <strong>Key numbers:</strong> Break-even fee is 1.83% (zero margin) and 2.33% for £50
-          margin. Effective cost is about 21% annualised, so target firms that cannot get a
-          facility. The expected-loss reserve covers only 0.33% of principal, so diversification is
-          essential. If the platform alone bore all loss, break-even default rate is about 1.7% of
-          invoices.
-          <p className="mt-3 text-xs text-slate-500">
-            Investor return is not promised. It is the invoice discount minus losses. Legal
-            structure (receivable purchase or loan notes) needs an FCA-authorised partner.
-          </p>
-        </div>
-
-        <div className="mt-10 text-center">
-          <Link href="/dashboard" className="inline-block rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white hover:bg-indigo-500">
-            Run this pricing engine on a live demo invoice →
-          </Link>
-        </div>
-      </Section>
-
-      {/* SLIDE 7 - APPENDIX */}
-      <Section>
-        <Kicker>Slide 7 · Appendix</Kicker>
-        <h2 className="max-w-3xl text-3xl font-bold tracking-tight text-slate-950">Pricing rule, API status, assumptions and sources.</h2>
-
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-semibold text-slate-900">A1. Pricing rule</h3>
-            <p className="mt-2 font-mono text-sm text-indigo-700">X ≥ Y + F + D + M</p>
-            <p className="mt-2 text-xs text-slate-500">X = SME fee, Y = investor return, F = platform cost, D = expected loss, M = margin.</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-semibold text-slate-900">A2. PayPal API status</h3>
-            <ul className="mt-2 space-y-1 text-sm text-slate-700">
-              <li><Pill tone="emerald">Verified</Pill> create/send/remind invoice, record external payment, partial-paid status</li>
-              <li className="mt-2"><Pill tone="amber">Documented, not fully checked</Pill> Payouts, GBP/UK recipient support, webhooks</li>
-              <li className="mt-2"><Pill tone="rose">Unverified</Pill> invoicing webhook event names, UK fee schedule, lending-flow permission</li>
-            </ul>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-semibold text-slate-900">A3. Assumptions to replace with partner quotes</h3>
-            <p className="mt-2 text-sm text-slate-700">3% fee, 10% investor yield, 2% loss, £15 cost, 85% advance, 20% concentration cap.</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-semibold text-slate-900">A5. Demo scope</h3>
-            <p className="mt-2 text-sm text-slate-700">PayPal sandbox, simulated pool, no real money.</p>
-          </div>
-        </div>
-
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-xs text-slate-500">
-          <strong>A4. Sources:</strong> DBT/OSBC London Economics (Jul 2025), R3 Q1 2026,
-          FreeAgent, Spark Finance, law-firm summaries of the Commercial Payments Bill, PayPal
-          developer docs and fee schedule.
-        </div>
-      </Section>
-
-      <Section className="border-t border-slate-200">
-        <div className="rounded-3xl bg-slate-900 px-8 py-14 text-center text-white">
-          <h2 className="text-3xl font-bold">See the whole flow end to end</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-slate-300">
-            Create an invoice, score it with the explainable AI model, confirm it as the buyer,
-            fund it from the simulated pool, and record the repayment — all in the live demo.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link href="/dashboard" className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
-              Open SME dashboard
-            </Link>
-            <Link href="/pool" className="rounded-full border border-slate-600 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800">
-              Open investor pool
-            </Link>
-          </div>
-        </div>
-      </Section>
-    </main>
-  );
+    );
 }

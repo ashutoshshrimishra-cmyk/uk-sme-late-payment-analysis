@@ -40,8 +40,8 @@ const TYPE_LABEL: Record<string, string> = {
   platform_cost: "Platform cost",
   platform_margin: "Platform margin",
   sme_balance_payout: "Balance to SME",
-  default_reserve_drawdown: "Default — reserve drawdown",
-  default_pool_loss: "Default — pool loss",
+  default_reserve_drawdown: "Default: reserve drawdown",
+  default_pool_loss: "Default: pool loss",
 };
 
 export default function PoolPage() {
@@ -53,9 +53,28 @@ export default function PoolPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/pool", { cache: "no-store" });
-      const data = await res.json();
-      setState(data.state);
+      const text = await res.text();
+      let data: { state?: PoolStateRow; ledger?: LedgerRow[]; error?: string } = {};
+
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { error: "Server returned an invalid response." };
+        }
+      }
+
+      if (!res.ok) {
+        setState(null);
+        setLedger([]);
+        return;
+      }
+
+      setState(data.state ?? null);
       setLedger(data.ledger ?? []);
+    } catch {
+      setState(null);
+      setLedger([]);
     } finally {
       setLoading(false);
     }
@@ -74,114 +93,111 @@ export default function PoolPage() {
   const total = deployed + balance;
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Simulated investor pool</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">Pool ledger and health</h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            No real money moves here (Appendix A5). Every advance, repayment, loss reserve and
-            platform margin on the dashboard is logged below for transparency.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={load} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-            Refresh
-          </button>
-          <Link href="/dashboard" className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">
-            Go to SME dashboard
-          </Link>
-        </div>
-      </div>
-
-      {loading && <p className="mt-8 text-slate-400">Loading…</p>}
-
-      {state && (
-        <>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Card label="Available pool balance" value={money(state.balance)} tone="indigo" />
-            <Card label="Capital currently deployed" value={money(state.totalDeployed)} tone="sky" />
-            <Card label="Total pool capital (balance + deployed)" value={money(total)} tone="slate" />
-            <Card label="First-loss reserve fund" value={money(state.reserveFund)} tone="amber" />
-            <Card label="Cumulative platform margin" value={money(state.platformRevenue)} tone="emerald" />
-            <Card label="Cumulative investor yield" value={money(state.investorReturns)} tone="violet" />
+    <main className="min-h-screen bg-[#FAF7F0] px-6 py-10 font-body text-slate-600">
+      <div className="mx-auto max-w-7xl">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#C9A227]">Investor pool</p>
+            <h1 className="font-royal mt-1 text-3xl font-semibold text-[#0B1F3A]">Pool ledger and health</h1>
+            <div className="mt-4 h-px bg-[#C9A227]/40" />
+            <p className="mt-3 max-w-2xl text-sm text-slate-600">
+              Ledger entries show advances, repayments, reserve allocations and platform margin.
+            </p>
           </div>
-
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="font-semibold text-slate-900">Capital allocation</h2>
-            <div className="mt-3 h-4 w-full overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full bg-indigo-500"
-                style={{ width: `${total > 0 ? Math.min(100, (deployed / total) * 100) : 0}%` }}
-              />
-            </div>
-            <div className="mt-2 flex justify-between text-xs text-slate-500">
-              <span>Deployed into invoices: {money(deployed)}</span>
-              <span>Idle / available: {money(balance)}</span>
-            </div>
+          <div className="flex gap-2">
+            <button onClick={load} className="h-11 rounded-lg border border-[#C9A227]/50 bg-white px-5 text-sm font-semibold text-[#0B1F3A] hover:bg-[#FAF7F0]">
+              Refresh
+            </button>
+            <Link href="/dashboard" className="inline-flex h-11 items-center rounded-lg bg-[#0B1F3A] px-5 text-sm font-semibold text-white hover:bg-[#13315c]">
+              Go to SME dashboard
+            </Link>
           </div>
-        </>
-      )}
+        </div>
 
-      <div className="mt-8">
-        <h2 className="font-semibold text-slate-900">Recent ledger entries</h2>
-        <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="px-4 py-3 font-semibold">When</th>
-                <th className="px-4 py-3 font-semibold">Invoice</th>
-                <th className="px-4 py-3 font-semibold">Type</th>
-                <th className="px-4 py-3 font-semibold">Amount</th>
-                <th className="px-4 py-3 font-semibold">Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ledger.length === 0 && (
+        {loading && <p className="mt-8 text-sm text-slate-500">Loading…</p>}
+
+        {state && (
+          <>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Card label="Available pool balance" value={money(state.balance)} />
+              <Card label="Capital currently deployed" value={money(state.totalDeployed)} />
+              <Card label="Total pool capital (balance + deployed)" value={money(total)} />
+              <Card label="First-loss reserve fund" value={money(state.reserveFund)} />
+              <Card label="Cumulative platform margin" value={money(state.platformRevenue)} />
+              <Card label="Cumulative investor yield" value={money(state.investorReturns)} />
+            </div>
+
+            <div className="mt-6 rounded-xl border border-[#C9A227]/30 bg-white p-6 shadow-md">
+              <h2 className="font-royal text-lg font-semibold text-[#0B1F3A]">Capital allocation</h2>
+              <div className="mt-3 h-4 w-full overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full bg-[#0B1F3A]"
+                  style={{ width: `${total > 0 ? Math.min(100, (deployed / total) * 100) : 0}%` }}
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-slate-600">
+                <span>Deployed into invoices: {money(deployed)}</span>
+                <span>Idle / available: {money(balance)}</span>
+              </div>
+            </div>
+          </>
+        )}
+
+        <section className="mt-8 rounded-xl border border-[#C9A227]/30 bg-white p-6 shadow-md">
+          <h2 className="font-royal text-xl font-semibold text-[#0B1F3A]">Recent ledger entries</h2>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+              <thead className="sticky top-0 z-10 bg-[#0B1F3A] text-xs uppercase text-white">
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                    No pool activity yet — fund an invoice from the SME dashboard.
-                  </td>
+                  <th className="px-4 py-3 font-semibold">When</th>
+                  <th className="px-4 py-3 font-semibold">Invoice</th>
+                  <th className="px-4 py-3 font-semibold">Type</th>
+                  <th className="px-4 py-3 font-semibold">Amount</th>
+                  <th className="px-4 py-3 font-semibold">Note</th>
                 </tr>
-              )}
-              {ledger.map((row) => (
-                <tr key={row.id} className="odd:bg-white even:bg-slate-50/60">
-                  <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">{dt(row.createdAt)}</td>
-                  <td className="px-4 py-3">
-                    {row.invoiceId ? (
-                      <Link href={`/dashboard/${row.invoiceId}`} className="font-semibold text-indigo-700 hover:underline">
-                        {row.invoiceNumber}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-700">{TYPE_LABEL[row.type] ?? row.type}</td>
-                  <td className={`px-4 py-3 font-semibold ${Number(row.amount) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{money(row.amount)}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{row.note}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {ledger.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center">
+                      <div className="flex flex-col items-center gap-2 text-sm text-slate-600">
+                        <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-full bg-[#C9A227]/15 text-lg font-semibold text-[#C9A227]">£</span>
+                        <span>Nothing to show yet. Funded invoices will be recorded here.</span>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {ledger.map((row) => (
+                  <tr key={row.id} className="border-b border-slate-100 hover:bg-[#FAF7F0]">
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">{dt(row.createdAt)}</td>
+                    <td className="px-4 py-3">
+                      {row.invoiceId ? (
+                        <Link href={`/dashboard/${row.invoiceId}`} className="font-semibold text-[#0B1F3A] underline decoration-[#C9A227] underline-offset-2">
+                          {row.invoiceNumber}
+                        </Link>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{TYPE_LABEL[row.type] ?? row.type}</td>
+                    <td className={`px-4 py-3 font-semibold ${Number(row.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{money(row.amount)}</td>
+                    <td className="px-4 py-3 text-xs text-slate-500">{row.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </main>
   );
 }
 
-function Card({ label, value, tone }: { label: string; value: string; tone: "indigo" | "sky" | "slate" | "amber" | "emerald" | "violet" }) {
-  const tones: Record<string, string> = {
-    indigo: "border-indigo-200 bg-indigo-50",
-    sky: "border-sky-200 bg-sky-50",
-    slate: "border-slate-200 bg-slate-50",
-    amber: "border-amber-200 bg-amber-50",
-    emerald: "border-emerald-200 bg-emerald-50",
-    violet: "border-violet-200 bg-violet-50",
-  };
+function Card({ label, value }: { label: string; value: string }) {
   return (
-    <div className={`rounded-2xl border p-5 shadow-sm ${tones[tone]}`}>
-      <div className="text-2xl font-bold text-slate-900">{value}</div>
-      <div className="mt-1 text-sm text-slate-600">{label}</div>
+    <div className="rounded-xl border border-[#C9A227]/30 bg-white p-6 shadow-md">
+      <div className="font-royal text-2xl font-semibold text-[#0B1F3A]">{value}</div>
+      <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-600">{label}</div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 export function formatMoney(value: number | string, currency = "GBP"): string {
   const n = typeof value === "string" ? Number(value) : value;
-  if (Number.isNaN(n)) return "—";
+  if (Number.isNaN(n)) return "-";
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency,

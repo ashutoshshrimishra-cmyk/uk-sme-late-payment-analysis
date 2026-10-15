@@ -1,1 +1,73 @@
 @import "tailwindcss";
+
+.font-body {
+	font-family: var(--font-inter), sans-serif;
+}
+
+.font-royal {
+	font-family: var(--font-playfair), Georgia, serif;
+}
+
+.dashboard-page .input {
+	width: 100%;
+	height: 2.75rem;
+	border: 1px solid #cbd5e1;
+	border-radius: 0.5rem;
+	background: #fff;
+	padding: 0 0.75rem;
+	font-size: 0.875rem;
+	color: #0f172a;
+	outline: none;
+}
+
+.dashboard-page .input:focus {
+	border-color: #c9a227;
+	box-shadow: 0 0 0 2px rgb(201 162 39 / 30%);
+}
+
+.dashboard-page textarea.input {
+	height: auto;
+	min-height: 4.5rem;
+	padding-top: 0.625rem;
+	padding-bottom: 0.625rem;
+	resize: vertical;
+}
+
+.pitch-page {
+	position: relative;
+	isolation: isolate;
+}
+
+.hero ::selection {
+	background: transparent;
+	color: inherit;
+}
+
+.pitch-page .font-display {
+	font-family: "Montserrat", "Arial", sans-serif;
+}
+
+@keyframes sweep {
+	from {
+		width: 0;
+	}
+
+	to {
+		width: 100%;
+	}
+}
+
+@keyframes fadeOut {
+	from {
+		opacity: 1;
+	}
+
+	to {
+		opacity: 0;
+	}
+}
+
+body:has(.pitch-page) > header,
+body:has(.pitch-page) > footer {
+	display: none;
+}
