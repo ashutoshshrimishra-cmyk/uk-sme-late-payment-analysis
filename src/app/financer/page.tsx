@@ -15,7 +15,7 @@ type InvoiceRow = {
   status: string;
 };
 
-const FILTERS = ["all", "uploaded", "accepted", "funded", "partially_paid", "paid", "defaulted", "declined"];
+const FILTERS = ["all", "uploaded", "accepted", "funded", "partially_paid", "paid", "defaulted", "rejected"];
 
 function money(value: string, currency: string) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(Number(value) || 0);

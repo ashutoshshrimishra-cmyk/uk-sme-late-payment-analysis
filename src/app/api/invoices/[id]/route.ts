@@ -38,8 +38,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     .where(eq(poolLedger.invoiceId, invoiceId))
     .orderBy(asc(poolLedger.createdAt));
 
+  const {
+    buyerAcceptanceTokenHash: _buyerAcceptanceTokenHash,
+    buyerAcceptanceTokenExpiresAt: _buyerAcceptanceTokenExpiresAt,
+    ...safeInvoice
+  } = rows[0].invoices;
+
   return NextResponse.json({
-    invoice: rows[0].invoices,
+    invoice: safeInvoice,
     buyer: rows[0].buyers,
     events,
     ledger,

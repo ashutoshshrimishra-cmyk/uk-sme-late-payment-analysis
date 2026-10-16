@@ -68,7 +68,6 @@ export default function InvoiceDetail({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
-  const [proofNote, setProofNote] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [payLate, setPayLate] = useState(false);
 
@@ -107,7 +106,7 @@ export default function InvoiceDetail({
       setEvents(data.events ?? []);
       setLedger(data.ledger ?? []);
       if (data.invoice) {
-        setPayAmount(data.invoice.amount);
+        setPayAmount((Number(data.invoice.amount) - Number(data.invoice.amountPaid)).toFixed(2));
       }
     } catch {
       setInvoice(null);
@@ -155,7 +154,16 @@ export default function InvoiceDetail({
     return <main className="mx-auto max-w-5xl px-6 py-12 text-slate-500">Loading…</main>;
   }
   if (!invoice) {
-    return <main className="mx-auto max-w-5xl px-6 py-12 text-rose-600">Invoice not found.</main>;
+    return (
+      <main className="mx-auto max-w-5xl px-6 py-12">
+        <p role="alert" className="text-rose-600">
+          {message?.text ?? "Invoice not found."}
+        </p>
+        <Link href={homeHref} className="mt-4 inline-block text-sm font-semibold text-indigo-600 hover:underline">
+          ← Back to {showActions ? "queue" : "dashboard"}
+        </Link>
+      </main>
+    );
   }
 
   const currency = invoice.currency;
@@ -293,22 +301,6 @@ export default function InvoiceDetail({
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="font-semibold text-slate-900">Actions</h2>
 
-              {invoice.status === "uploaded" && (
-                <div className="mt-3 space-y-3">
-                  <p className="text-xs text-slate-500">Simulate the buyer confirming the invoice and delivery proof.</p>
-                  <textarea
-                    value={proofNote}
-                    onChange={(e) => setProofNote(e.target.value)}
-                    placeholder="Delivery note / PO reference (optional)"
-                    className="w-full rounded-lg border border-slate-200 p-2 text-sm"
-                    rows={2}
-                  />
-                  <button disabled={busy} onClick={() => act("confirm", { deliveryProofNote: proofNote })} className="btn-primary">
-                    Simulate buyer step
-                  </button>
-                </div>
-              )}
-
               {invoice.status === "accepted" && (
                 <div className="mt-3 space-y-3">
                   <p className="text-xs text-slate-500">
@@ -320,7 +312,7 @@ export default function InvoiceDetail({
                 </div>
               )}
 
-              {invoice.status === "funded" && (
+              {(invoice.status === "funded" || invoice.status === "partially_paid") && (
                 <div className="mt-3 space-y-3">
                   <p className="text-xs text-slate-500">Record the buyer&apos;s payment (bank transfer by default) against the invoice.</p>
                   <label className="block text-xs font-medium text-slate-600">
@@ -345,13 +337,15 @@ export default function InvoiceDetail({
                   >
                     Record payment
                   </button>
-                  <button disabled={busy} onClick={() => act("default", { reason: "Buyer insolvency" })} className="btn-secondary w-full">
-                    Record default
-                  </button>
+                  {invoice.status === "funded" && (
+                    <button disabled={busy} onClick={() => act("default", { reason: "Buyer insolvency" })} className="btn-secondary w-full">
+                      Record default
+                    </button>
+                  )}
                 </div>
               )}
 
-              {["paid", "partially_paid", "defaulted", "declined"].includes(invoice.status) && (
+              {["paid", "partially_paid", "defaulted", "rejected"].includes(invoice.status) && (
                 <p className="mt-3 text-sm text-slate-500">This invoice has reached a final or near-final state. See the timeline and ledger for the full outcome.</p>
               )}
             </div>

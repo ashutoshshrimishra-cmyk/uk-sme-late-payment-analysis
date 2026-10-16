@@ -4,6 +4,7 @@ import { invoices, statusEvents } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { applyDefault } from "@/lib/pool";
 import { requireRole } from "@/lib/guard";
+import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoice-state";
 
 export const dynamic = "force-dynamic";
 
@@ -24,14 +25,22 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: `Invoice is '${invoice.status}', can only default a funded invoice.` }, { status: 409 });
   }
 
+  let updated;
+  try {
+    updated = await transitionInvoiceStatus({
+      invoiceId,
+      expectedStatus: "funded",
+      nextStatus: "defaulted",
+    });
+  } catch (error) {
+    if (error instanceof InvoiceStateConflictError) {
+      return NextResponse.json({ error: "Invoice is no longer eligible for default." }, { status: 409 });
+    }
+    throw error;
+  }
+
   const advanceAmount = Number(invoice.advanceAmount);
   const result = await applyDefault({ invoiceId: invoice.id, advanceAmount });
-
-  const [updated] = await db
-    .update(invoices)
-    .set({ status: "defaulted" })
-    .where(eq(invoices.id, invoiceId))
-    .returning();
 
   await db.insert(statusEvents).values({
     invoiceId,
@@ -39,5 +48,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     note: `Default recorded: ${reason}. Recourse to SME first (not recorded as cash); first-loss reserve absorbed £${result.fromReserve.toFixed(2)}; investor pool capital absorbed £${result.fromPool.toFixed(2)}.`,
   });
 
-  return NextResponse.json({ invoice: updated, waterfall: result });
+  const {
+    buyerAcceptanceTokenHash: _buyerAcceptanceTokenHash,
+    buyerAcceptanceTokenExpiresAt: _buyerAcceptanceTokenExpiresAt,
+    ...safeInvoice
+  } = updated;
+  return NextResponse.json({ invoice: safeInvoice, waterfall: result });
 }

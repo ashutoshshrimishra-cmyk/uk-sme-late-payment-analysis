@@ -7,8 +7,8 @@ import { previewPricing } from "@/lib/pricing";
 import { createAndSendInvoice } from "@/lib/paypal";
 import { getOrCreatePoolState } from "@/lib/pool";
 import { askGemini } from "@/lib/gemini";
-import { randomUUID } from "node:crypto";
 import { requireRole } from "@/lib/guard";
+import { createBuyerToken } from "@/lib/buyer-token";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,6 @@ export async function GET() {
         status: invoices.status,
         riskScore: invoices.riskScore,
         riskLabel: invoices.riskLabel,
-        buyerAcceptanceToken: invoices.buyerAcceptanceToken,
         advancePct: invoices.advancePct,
         feePct: invoices.feePct,
         advanceAmount: invoices.advanceAmount,
@@ -44,10 +43,7 @@ export async function GET() {
       .leftJoin(buyers, eq(invoices.buyerId, buyers.id))
       .orderBy(desc(invoices.createdAt));
 
-    const visibleRows = g.role === "sme"
-      ? rows
-      : rows.map(({ buyerAcceptanceToken: _token, ...row }) => row);
-    return NextResponse.json({ invoices: visibleRows });
+    return NextResponse.json({ invoices: rows });
   } catch (error) {
     return NextResponse.json(
       {
@@ -153,13 +149,15 @@ export async function POST(request: Request) {
       `Factors: ${JSON.stringify(risk.factors)}`,
   );
 
-  const status = risk.decision === "declined" ? "declined" : "uploaded";
+  const status = risk.decision === "declined" ? "rejected" : "uploaded";
+  const buyerToken = status === "uploaded" ? createBuyerToken() : null;
 
   const [invoice] = await db
     .insert(invoices)
     .values({
       invoiceNumber,
-      buyerAcceptanceToken: randomUUID(),
+      buyerAcceptanceTokenHash: buyerToken?.tokenHash ?? null,
+      buyerAcceptanceTokenExpiresAt: buyerToken?.expiresAt ?? null,
       smeName: String(smeName),
       smeEmail: String(smeEmail),
       buyerId: buyer.id,
@@ -185,11 +183,22 @@ export async function POST(request: Request) {
     invoiceId: invoice.id,
     status,
     note:
-      (status === "declined"
+      (status === "rejected"
         ? `AI risk score ${risk.score}/100 (${risk.label}): below minimum threshold, funding declined.`
         : `Invoice created and sent via PayPal Invoicing (${paypalResult.mode}). AI risk score ${risk.score}/100 (${risk.label}).`) +
       (aiNote ? ` AI explanation: ${aiNote}` : ""),
   });
 
-  return NextResponse.json({ invoice, risk, pricing, paypal: paypalResult }, { status: 201 });
+  const {
+    buyerAcceptanceTokenHash: _buyerAcceptanceTokenHash,
+    buyerAcceptanceTokenExpiresAt: _buyerAcceptanceTokenExpiresAt,
+    ...safeInvoice
+  } = invoice;
+  return NextResponse.json({
+    invoice: safeInvoice,
+    buyerToken: buyerToken?.token ?? null,
+    risk,
+    pricing,
+    paypal: paypalResult,
+  }, { status: 201 });
 }

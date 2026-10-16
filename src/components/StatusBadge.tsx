@@ -5,7 +5,7 @@ const STYLES: Record<string, string> = {
   paid: "bg-emerald-100 text-emerald-700",
   partially_paid: "bg-amber-100 text-amber-800",
   defaulted: "bg-rose-100 text-rose-700",
-  declined: "bg-rose-100 text-rose-700",
+  rejected: "bg-rose-100 text-rose-700",
 };
 
 const LABELS: Record<string, string> = {
@@ -15,7 +15,7 @@ const LABELS: Record<string, string> = {
   paid: "Paid",
   partially_paid: "Partially paid",
   defaulted: "Defaulted",
-  declined: "Declined",
+  rejected: "Rejected",
 };
 
 export default function StatusBadge({ status }: { status: string }) {

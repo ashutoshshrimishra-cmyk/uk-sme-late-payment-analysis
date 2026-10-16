@@ -1,35 +1,58 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { db } from "@/db";
-import { buyers, invoices, statusEvents } from "@/db/schema";
+import { invoices, statusEvents } from "@/db/schema";
+import { hashBuyerToken, isBuyerTokenFormat } from "@/lib/buyer-token";
+import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoice-state";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
+function invalidLink() {
+  return NextResponse.json({ error: "This link is not valid" }, { status: 404 });
+}
+
 export async function GET(_request: Request, context: RouteContext) {
   const { token } = await context.params;
-  const [row] = await db
+  if (!isBuyerTokenFormat(token)) return invalidLink();
+
+  const [invoice] = await db
     .select({
-      invoiceNumber: invoices.invoiceNumber,
-      smeName: invoices.smeName,
-      description: invoices.description,
       amount: invoices.amount,
       currency: invoices.currency,
+      smeName: invoices.smeName,
+      description: invoices.description,
       dueDate: invoices.dueDate,
-      status: invoices.status,
-      buyerName: buyers.name,
     })
     .from(invoices)
-    .innerJoin(buyers, eq(invoices.buyerId, buyers.id))
-    .where(eq(invoices.buyerAcceptanceToken, token))
+    .where(and(
+      eq(invoices.buyerAcceptanceTokenHash, hashBuyerToken(token)),
+      gt(invoices.buyerAcceptanceTokenExpiresAt, new Date()),
+      eq(invoices.status, "uploaded"),
+    ))
     .limit(1);
 
-  if (!row) return NextResponse.json({ error: "Acceptance link not found" }, { status: 404 });
-  return NextResponse.json({ invoice: row });
+  if (!invoice) return invalidLink();
+  return NextResponse.json({ invoice });
 }
 
 export async function POST(request: Request, context: RouteContext) {
   const { token } = await context.params;
-  let body: { deliveryProofNote?: unknown } = {};
+  if (!isBuyerTokenFormat(token)) return invalidLink();
+
+  const tokenHash = hashBuyerToken(token);
+  const now = new Date();
+  const [invoice] = await db
+    .select({ id: invoices.id })
+    .from(invoices)
+    .where(and(
+      eq(invoices.buyerAcceptanceTokenHash, tokenHash),
+      gt(invoices.buyerAcceptanceTokenExpiresAt, now),
+      eq(invoices.status, "uploaded"),
+    ))
+    .limit(1);
+  if (!invoice) return invalidLink();
+
+  let body: { deliveryProofNote?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -37,32 +60,41 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const proof = typeof body.deliveryProofNote === "string" ? body.deliveryProofNote.trim() : "";
-  const note = proof || "Buyer confirmed the invoice and delivery.";
-  const [updated] = await db
-    .update(invoices)
-    .set({ status: "accepted", confirmedAt: new Date(), deliveryProofNote: note })
-    .where(and(eq(invoices.buyerAcceptanceToken, token), eq(invoices.status, "uploaded")))
-    .returning({
-      id: invoices.id,
-      invoiceNumber: invoices.invoiceNumber,
-      status: invoices.status,
-    });
-
-  if (!updated) {
-    const [existing] = await db
-      .select({ status: invoices.status })
-      .from(invoices)
-      .where(eq(invoices.buyerAcceptanceToken, token))
-      .limit(1);
-    if (!existing) return NextResponse.json({ error: "Acceptance link not found" }, { status: 404 });
-    return NextResponse.json({ error: `Invoice is '${existing.status}' and cannot be accepted.` }, { status: 409 });
+  if (!proof || proof.length > 100) {
+    return NextResponse.json(
+      { error: "Delivery / PO reference is required and must be 100 characters or fewer" },
+      { status: 400 },
+    );
   }
 
+  let accepted;
+  try {
+    accepted = await transitionInvoiceStatus({
+      invoiceId: invoice.id,
+      expectedStatus: "uploaded",
+      nextStatus: "accepted",
+      values: {
+        confirmedAt: now,
+        deliveryProofNote: proof,
+        buyerAcceptanceTokenHash: null,
+        buyerAcceptanceTokenExpiresAt: null,
+      },
+      conditions: [
+        eq(invoices.buyerAcceptanceTokenHash, tokenHash),
+        gt(invoices.buyerAcceptanceTokenExpiresAt, now),
+      ],
+    });
+  } catch (error) {
+    if (error instanceof InvoiceStateConflictError) return invalidLink();
+    throw error;
+  }
+
+  const timelineNote = proof ? `Delivery / PO reference: ${proof}` : "No proof attached";
   await db.insert(statusEvents).values({
-    invoiceId: updated.id,
+    invoiceId: accepted.id,
     status: "accepted",
-    note: `Buyer confirmed the invoice via its acceptance link. Proof: ${note}`,
+    note: `Buyer accepted the invoice. ${timelineNote}`,
   });
 
-  return NextResponse.json({ invoice: updated });
+  return NextResponse.json({ ok: true });
 }

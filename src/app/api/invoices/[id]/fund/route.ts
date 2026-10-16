@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { createPayout } from "@/lib/paypal";
 import { applyAdvance } from "@/lib/pool";
 import { requireRole } from "@/lib/guard";
+import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoice-state";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,21 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   if (invoice.status !== "accepted") {
     return NextResponse.json({ error: `Invoice is '${invoice.status}', cannot be funded.` }, { status: 409 });
+  }
+
+  let updated;
+  try {
+    updated = await transitionInvoiceStatus({
+      invoiceId,
+      expectedStatus: "accepted",
+      nextStatus: "funded",
+      values: { fundedAt: new Date() },
+    });
+  } catch (error) {
+    if (error instanceof InvoiceStateConflictError) {
+      return NextResponse.json({ error: "Invoice is no longer eligible for funding." }, { status: 409 });
+    }
+    throw error;
   }
 
   const advanceAmount = Number(invoice.advanceAmount);
@@ -37,15 +53,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     note: `Advance of ${invoice.currency} ${advanceAmount.toFixed(2)} paid to ${invoice.smeName} via PayPal Payouts (${payout.mode})`,
   });
 
-  const [updated] = await db
+  await db
     .update(invoices)
-    .set({
-      status: "funded",
-      fundedAt: new Date(),
-      paypalPayoutBatchId: payout.payoutBatchId,
-    })
+    .set({ paypalPayoutBatchId: payout.payoutBatchId })
     .where(eq(invoices.id, invoiceId))
-    .returning();
+    .returning({ id: invoices.id });
 
   await db.insert(statusEvents).values({
     invoiceId,
@@ -53,5 +65,10 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     note: `Pool advanced ${invoice.currency} ${advanceAmount.toFixed(2)} (${(Number(invoice.advancePct) * 100).toFixed(0)}% of invoice) via PayPal Payouts, ${payout.mode} batch ${payout.payoutBatchId}.`,
   });
 
-  return NextResponse.json({ invoice: updated, payout });
+  const {
+    buyerAcceptanceTokenHash: _buyerAcceptanceTokenHash,
+    buyerAcceptanceTokenExpiresAt: _buyerAcceptanceTokenExpiresAt,
+    ...safeInvoice
+  } = updated;
+  return NextResponse.json({ invoice: safeInvoice, payout });
 }

@@ -7,6 +7,7 @@ import { computeRepaymentWaterfall } from "@/lib/pricing";
 import { applyRepaymentWaterfall } from "@/lib/pool";
 import { daysBetween } from "@/lib/format";
 import { requireRole } from "@/lib/guard";
+import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoice-state";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const [invoice] = await db.select().from(invoices).where(eq(invoices.id, invoiceId));
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
-  if (invoice.status !== "funded") {
+  if (invoice.status !== "funded" && invoice.status !== "partially_paid") {
     return NextResponse.json({ error: `Invoice is '${invoice.status}', cannot record a payment.` }, { status: 409 });
   }
 
@@ -31,6 +32,27 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
   const paymentDate = body.paymentDate ? new Date(body.paymentDate) : new Date();
   const method = (body.method as string) === "PAYPAL" ? "PAYPAL" : "BANK_TRANSFER";
+
+  const newAmountPaid = Number(invoice.amountPaid) + amountPaid;
+  const fullyPaid = newAmountPaid >= amountDue - 0.005;
+  let updated;
+  try {
+    updated = await transitionInvoiceStatus({
+      invoiceId,
+      expectedStatus: invoice.status,
+      nextStatus: fullyPaid ? "paid" : "partially_paid",
+      values: {
+        amountPaid: newAmountPaid.toFixed(2),
+        paidAt: fullyPaid ? paymentDate : invoice.paidAt,
+      },
+      conditions: [eq(invoices.amountPaid, invoice.amountPaid)],
+    });
+  } catch (error) {
+    if (error instanceof InvoiceStateConflictError) {
+      return NextResponse.json({ error: "Invoice payment has already been recorded or its status changed." }, { status: 409 });
+    }
+    throw error;
+  }
 
   const paymentResult = await recordExternalPayment({
     paypalInvoiceId: invoice.paypalInvoiceId!,
@@ -68,19 +90,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     balanceToSme: waterfall.balanceToSme,
   });
 
-  const newAmountPaid = Number(invoice.amountPaid) + amountPaid;
-  const fullyPaid = newAmountPaid >= amountDue - 0.005;
-  const newStatus = fullyPaid ? "paid" : "partially_paid";
-
-  const [updated] = await db
-    .update(invoices)
-    .set({
-      status: newStatus,
-      amountPaid: newAmountPaid.toFixed(2),
-      paidAt: fullyPaid ? paymentDate : invoice.paidAt,
-    })
-    .where(eq(invoices.id, invoiceId))
-    .returning();
+  const newStatus = updated.status;
 
   if (buyer) {
     await db
@@ -100,5 +110,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     note: `${method === "BANK_TRANSFER" ? "Bank transfer" : "PayPal"} payment of ${invoice.currency} ${amountPaid.toFixed(2)} recorded on the invoice (${paymentResult.mode}).${lateNote} Waterfall: principal £${waterfall.investorPrincipal.toFixed(2)} + investor return £${waterfall.investorReturn.toFixed(2)} to pool, reserve +£${waterfall.expectedLossReserve.toFixed(2)}, platform margin £${waterfall.platformMargin.toFixed(2)}, balance to SME £${waterfall.balanceToSme.toFixed(2)}.`,
   });
 
-  return NextResponse.json({ invoice: updated, waterfall, payment: paymentResult });
+  const {
+    buyerAcceptanceTokenHash: _buyerAcceptanceTokenHash,
+    buyerAcceptanceTokenExpiresAt: _buyerAcceptanceTokenExpiresAt,
+    ...safeInvoice
+  } = updated;
+  return NextResponse.json({ invoice: safeInvoice, waterfall, payment: paymentResult });
 }

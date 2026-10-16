@@ -15,6 +15,13 @@
       "when": 1792147147831,
       "tag": "0001_buyer_acceptance_token",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792151257739,
+      "tag": "0002_hashed_buyer_acceptance_tokens",
+      "breakpoints": true
     }
   ]
 }

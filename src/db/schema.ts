@@ -25,7 +25,8 @@ export const buyers = pgTable("buyers", {
 export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
   invoiceNumber: varchar("invoice_number", { length: 64 }).notNull().unique(),
-  buyerAcceptanceToken: text("buyer_acceptance_token").unique(),
+  buyerAcceptanceTokenHash: text("buyer_acceptance_token_hash").unique(),
+  buyerAcceptanceTokenExpiresAt: timestamp("buyer_acceptance_token_expires_at", { withTimezone: true }),
   smeName: text("sme_name").notNull(),
   smeEmail: text("sme_email").notNull(),
   buyerId: integer("buyer_id").notNull().references(() => buyers.id),
@@ -36,7 +37,7 @@ export const invoices = pgTable("invoices", {
   dueDate: timestamp("due_date", { withTimezone: true }).notNull(),
 
   status: varchar("status", { length: 24 }).notNull().default("uploaded"),
-  // uploaded -> accepted -> funded -> paid | partially_paid | defaulted | declined
+  // uploaded -> accepted -> funded -> partially_paid -> paid | defaulted; uploaded/accepted -> rejected
 
   riskScore: integer("risk_score"),
   riskLabel: text("risk_label"),

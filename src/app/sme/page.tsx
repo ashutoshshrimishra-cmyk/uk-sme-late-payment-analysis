@@ -6,7 +6,6 @@ import Link from "next/link";
 type InvoiceRow = {
   id: number;
   invoiceNumber: string;
-  buyerAcceptanceToken: string | null;
   smeName: string;
   buyerName: string | null;
   buyerCompany: string | null;
@@ -49,13 +48,13 @@ function InvoiceStatusBadge({ status }: { status: string }) {
     partially_paid: "Pending",
     paid: "Paid",
     defaulted: "Defaulted",
-    declined: "Declined",
+    rejected: "Rejected",
   }[normalizedStatus] ?? normalizedStatus.replaceAll("_", " ");
   const tone = normalizedStatus === "paid"
     ? "bg-emerald-100 text-emerald-800"
     : ["accepted", "funded", "partially_paid"].includes(normalizedStatus)
       ? "bg-amber-100 text-amber-800"
-      : ["defaulted", "declined"].includes(normalizedStatus)
+      : ["defaulted", "rejected"].includes(normalizedStatus)
         ? "bg-red-100 text-red-700"
         : "bg-slate-100 text-slate-700";
 
@@ -67,7 +66,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [submitting, setSubmitting] = useState(false);
-  const [lastResult, setLastResult] = useState<{ error?: string; message?: string; buyerToken?: string } | null>(null);
+  const [lastResult, setLastResult] = useState<{ error?: string; message?: string } | null>(null);
+  const [buyerLink, setBuyerLink] = useState<{ invoiceId: number; token: string } | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
+  const [copyMessage, setCopyMessage] = useState("");
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -123,15 +125,43 @@ export default function DashboardPage() {
       } else {
         setLastResult({
           message: `Invoice ${data.invoice.invoiceNumber} created. AI score ${data.risk.score}/100 (${data.risk.label}).`,
-          buyerToken: data.invoice.buyerAcceptanceToken,
         });
+        setBuyerLink(data.buyerToken ? { invoiceId: data.invoice.id, token: data.buyerToken } : null);
         setForm({ ...EMPTY_FORM });
         await loadInvoices();
       }
+
     } catch {
       setLastResult({ error: "Network error creating invoice" });
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function regenerateBuyerLink(invoiceId: number) {
+    setRegeneratingId(invoiceId);
+    setCopyMessage("");
+    setLastResult(null);
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/buyer-link`, { method: "POST" });
+      const data: { token?: string; error?: string } = await response.json();
+      if (!response.ok || !data.token) throw new Error(data.error ?? "Could not create a buyer link.");
+      setBuyerLink({ invoiceId, token: data.token });
+      setLastResult({ message: "A new buyer link was generated. The previous link is no longer valid." });
+    } catch (cause) {
+      setLastResult({ error: cause instanceof Error ? cause.message : "Could not create a buyer link." });
+    } finally {
+      setRegeneratingId(null);
+    }
+  }
+
+  async function copyBuyerLink(token: string) {
+    try {
+      const url = new URL(`/buyer/accept/${token}`, window.location.origin).toString();
+      await navigator.clipboard.writeText(url);
+      setCopyMessage("Buyer link copied.");
+    } catch {
+      setCopyMessage("Could not copy the link. Check browser clipboard permissions.");
     }
   }
 
@@ -186,16 +216,10 @@ export default function DashboardPage() {
             {lastResult?.message && (
               <div role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
                 <p>{lastResult.message}</p>
-                {lastResult.buyerToken && (
-                  <Link
-                    href={`/buyer/accept/${lastResult.buyerToken}`}
-                    className="mt-2 inline-block font-semibold underline"
-                  >
-                    Share buyer acceptance link
-                  </Link>
-                )}
+                {buyerLink && <button type="button" onClick={() => void copyBuyerLink(buyerLink.token)} className="mt-2 inline-block font-semibold underline">Copy buyer link</button>}
               </div>
             )}
+            {copyMessage && <p role="status" className="mt-2 text-xs text-emerald-700">{copyMessage}</p>}
           </form>
 
           <section className="rounded-xl border border-[#C9A227]/30 bg-white p-6 shadow-md">
@@ -255,10 +279,22 @@ export default function DashboardPage() {
                       </td>
                       <td className="px-4 py-3"><InvoiceStatusBadge status={inv.status} /></td>
                       <td className="px-4 py-3">
-                        {inv.status === "uploaded" && inv.buyerAcceptanceToken ? (
-                          <Link href={`/buyer/accept/${inv.buyerAcceptanceToken}`} className="text-xs font-semibold text-[#0B1F3A] underline decoration-[#C9A227] underline-offset-2">
-                            Share link
-                          </Link>
+                        {inv.status === "uploaded" ? (
+                          <div className="flex flex-col items-start gap-2">
+                            {buyerLink?.invoiceId === inv.id && (
+                              <button type="button" onClick={() => void copyBuyerLink(buyerLink.token)} className="text-xs font-semibold text-[#0B1F3A] underline decoration-[#C9A227] underline-offset-2">
+                                Copy buyer link
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={regeneratingId === inv.id}
+                              onClick={() => void regenerateBuyerLink(inv.id)}
+                              className="text-xs font-semibold text-slate-600 underline decoration-slate-300 underline-offset-2 disabled:opacity-50"
+                            >
+                              {regeneratingId === inv.id ? "Generating…" : "Regenerate link"}
+                            </button>
+                          </div>
                         ) : "-"}
                       </td>
                     </tr>
