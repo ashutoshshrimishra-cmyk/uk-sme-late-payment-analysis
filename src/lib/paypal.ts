@@ -105,7 +105,6 @@ export async function createAndSendInvoice(params: CreateInvoiceParams): Promise
             unit_amount: { currency_code: params.currency, value: params.amount.toFixed(2) },
           },
         ],
-        configuration: { partial_payment: { allow_partial_payment: true } },
       }),
       cache: "no-store",
     });
