@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { buyers, invoices, statusEvents, poolState } from "@/db/schema";
+import { buyers, invoices, statusEvents } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { assessRisk } from "@/lib/risk";
 import { previewPricing } from "@/lib/pricing";
 import { createAndSendInvoice } from "@/lib/paypal";
 import { getOrCreatePoolState } from "@/lib/pool";
+import { askGemini } from "@/lib/gemini";
+import { randomUUID } from "node:crypto";
+import { requireRole } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const g = await requireRole("sme", "financer");
+  if (!g.ok) return g.res;
+
   try {
     const rows = await db
       .select({
@@ -23,6 +29,7 @@ export async function GET() {
         status: invoices.status,
         riskScore: invoices.riskScore,
         riskLabel: invoices.riskLabel,
+        buyerAcceptanceToken: invoices.buyerAcceptanceToken,
         advancePct: invoices.advancePct,
         feePct: invoices.feePct,
         advanceAmount: invoices.advanceAmount,
@@ -37,7 +44,10 @@ export async function GET() {
       .leftJoin(buyers, eq(invoices.buyerId, buyers.id))
       .orderBy(desc(invoices.createdAt));
 
-    return NextResponse.json({ invoices: rows });
+    const visibleRows = g.role === "sme"
+      ? rows
+      : rows.map(({ buyerAcceptanceToken: _token, ...row }) => row);
+    return NextResponse.json({ invoices: visibleRows });
   } catch (error) {
     return NextResponse.json(
       {
@@ -50,6 +60,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const g = await requireRole("sme");
+  if (!g.ok) return g.res;
+
   const body = await request.json().catch(() => null);
   if (!body) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
@@ -134,12 +147,19 @@ export async function POST(request: Request) {
     dueDate: due,
   });
 
+  const aiNote = await askGemini(
+    `You are an invoice-finance risk analyst. In at most 2 short plain-English sentences, explain this decision to a small business owner. Do not use markdown. ` +
+      `Risk score ${risk.score}/100 (${risk.label}), advance ${(risk.advancePct * 100).toFixed(0)}%, fee ${(risk.feePct * 100).toFixed(1)}%. ` +
+      `Factors: ${JSON.stringify(risk.factors)}`,
+  );
+
   const status = risk.decision === "declined" ? "declined" : "uploaded";
 
   const [invoice] = await db
     .insert(invoices)
     .values({
       invoiceNumber,
+      buyerAcceptanceToken: randomUUID(),
       smeName: String(smeName),
       smeEmail: String(smeEmail),
       buyerId: buyer.id,
@@ -165,9 +185,10 @@ export async function POST(request: Request) {
     invoiceId: invoice.id,
     status,
     note:
-      status === "declined"
+      (status === "declined"
         ? `AI risk score ${risk.score}/100 (${risk.label}): below minimum threshold, funding declined.`
-        : `Invoice created and sent via PayPal Invoicing (${paypalResult.mode}). AI risk score ${risk.score}/100 (${risk.label}).`,
+        : `Invoice created and sent via PayPal Invoicing (${paypalResult.mode}). AI risk score ${risk.score}/100 (${risk.label}).`) +
+      (aiNote ? ` AI explanation: ${aiNote}` : ""),
   });
 
   return NextResponse.json({ invoice, risk, pricing, paypal: paypalResult }, { status: 201 });

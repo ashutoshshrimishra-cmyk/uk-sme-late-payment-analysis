@@ -4,10 +4,14 @@ import { invoices, statusEvents } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createPayout } from "@/lib/paypal";
 import { applyAdvance } from "@/lib/pool";
+import { requireRole } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const g = await requireRole("financer");
+  if (!g.ok) return g.res;
+
   const { id } = await context.params;
   const invoiceId = Number(id);
 

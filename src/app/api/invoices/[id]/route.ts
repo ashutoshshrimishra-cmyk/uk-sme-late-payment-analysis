@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { buyers, invoices, statusEvents, poolLedger } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
+import { requireRole } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const g = await requireRole("sme", "financer");
+  if (!g.ok) return g.res;
+
   const { id } = await context.params;
   const invoiceId = Number(id);
   if (!Number.isInteger(invoiceId)) {

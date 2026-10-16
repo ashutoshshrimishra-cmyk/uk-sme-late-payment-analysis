@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PortalCards from "@/components/PortalCards";
 
 const figures = [
     { value: "£11bn", label: "Late-payment cost to the UK economy", note: "Modelled estimate" },
@@ -29,19 +30,8 @@ export default function HomePage() {
                         Faster cash for SMEs when buyers pay late.
                     </p>
 
-                    <div className="relative z-20 mb-10 flex flex-col gap-3 items-center sm:flex-row">
-                        <Link
-                            href="/dashboard"
-                            className="inline-flex items-center justify-center h-12 px-8 rounded-full text-sm font-semibold uppercase tracking-wide text-white bg-white/15 border border-white/60 backdrop-blur-sm hover:bg-white/25 transition-colors duration-200"
-                        >
-                            Open SME dashboard
-                        </Link>
-                        <Link
-                            href="/pool"
-                            className="inline-flex items-center justify-center h-12 px-8 rounded-full text-sm font-semibold uppercase tracking-wide text-white bg-white/15 border border-white/60 backdrop-blur-sm hover:bg-white/25 transition-colors duration-200"
-                        >
-                            View investor pool
-                        </Link>
+                    <div className="relative z-30 mb-10 w-full max-w-3xl">
+                        <PortalCards />
                     </div>
 
                     <div className="relative mx-auto w-full max-w-[340px] sm:max-w-[560px] lg:mx-0">

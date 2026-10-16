@@ -25,6 +25,7 @@ export const buyers = pgTable("buyers", {
 export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
   invoiceNumber: varchar("invoice_number", { length: 64 }).notNull().unique(),
+  buyerAcceptanceToken: text("buyer_acceptance_token").unique(),
   smeName: text("sme_name").notNull(),
   smeEmail: text("sme_email").notNull(),
   buyerId: integer("buyer_id").notNull().references(() => buyers.id),

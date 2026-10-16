@@ -3,10 +3,14 @@ import { db } from "@/db";
 import { invoices, poolLedger } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { getOrCreatePoolState } from "@/lib/pool";
+import { requireRole } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const g = await requireRole("financer", "investor");
+  if (!g.ok) return g.res;
+
   try {
     const state = await getOrCreatePoolState();
     const ledger = await db

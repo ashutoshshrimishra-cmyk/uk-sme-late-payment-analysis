@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { invoices, statusEvents } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requireRole } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const g = await requireRole("financer");
+  if (!g.ok) return g.res;
+
   const { id } = await context.params;
   const invoiceId = Number(id);
   const body = await request.json().catch(() => ({}));

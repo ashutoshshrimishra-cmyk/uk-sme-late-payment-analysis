@@ -8,6 +8,13 @@
       "when": 1792140761068,
       "tag": "0000_perpetual_white_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792147147831,
+      "tag": "0001_buyer_acceptance_token",
+      "breakpoints": true
     }
   ]
 }

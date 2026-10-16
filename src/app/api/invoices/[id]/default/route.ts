@@ -3,12 +3,16 @@ import { db } from "@/db";
 import { invoices, statusEvents } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { applyDefault } from "@/lib/pool";
+import { requireRole } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
 // Demo-only: lets the pitch demo show the default-loss waterfall
 // (Slide 5: recourse to SME -> first-loss reserve -> senior investor last).
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const g = await requireRole("financer");
+  if (!g.ok) return g.res;
+
   const { id } = await context.params;
   const invoiceId = Number(id);
   const body = await request.json().catch(() => ({}));
