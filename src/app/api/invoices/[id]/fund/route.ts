@@ -7,7 +7,7 @@ import { applyAdvance } from "@/lib/pool";
 import { requireRole } from "@/lib/guard";
 import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoice-state";
 import { getAdvanceRate } from "@/lib/risk";
-import { round2 } from "@/lib/pricing";
+import { calculateInvoiceMoney } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,14 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   }
   const previousStatus = invoice.status;
   const advancePct = getAdvanceRate(invoice.status === "accepted" || invoice.confirmedAt !== null);
-  const advanceAmount = round2(Number(invoice.amount) * advancePct);
+  const fundingDate = new Date();
+  const money = calculateInvoiceMoney({
+    amount: Number(invoice.amount),
+    advancePct,
+    fundingDate,
+    dueDate: invoice.dueDate,
+  });
+  const advanceAmount = money.advanceAmount;
 
   let updated;
   try {
@@ -34,7 +41,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       expectedStatus: previousStatus,
       nextStatus: "funded",
       values: {
-        fundedAt: new Date(),
+        fundedAt: fundingDate,
         advancePct: advancePct.toFixed(4),
         advanceAmount: advanceAmount.toFixed(2),
       },
@@ -86,11 +93,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     note: `Advance of ${invoice.currency} ${advanceAmount.toFixed(2)} paid to ${invoice.smeName} via PayPal Payouts (${payout.mode})`,
   });
 
-  await db
+  const [fundedInvoice] = await db
     .update(invoices)
-    .set({ paypalPayoutBatchId: payout.payoutBatchId })
+    .set({ paypalPayoutBatchId: payout.payoutBatchId, feeAmount: money.totalCost.toFixed(2) })
     .where(eq(invoices.id, invoiceId))
-    .returning({ id: invoices.id });
+    .returning();
 
   await db.insert(statusEvents).values({
     invoiceId,
@@ -102,6 +109,6 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     buyerAcceptanceTokenHash: _buyerAcceptanceTokenHash,
     buyerAcceptanceTokenExpiresAt: _buyerAcceptanceTokenExpiresAt,
     ...safeInvoice
-  } = updated;
+  } = fundedInvoice ?? updated;
   return NextResponse.json({ invoice: safeInvoice, payout });
 }

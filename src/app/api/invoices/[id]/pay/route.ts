@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { buyers, invoices, statusEvents } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { recordExternalPayment } from "@/lib/paypal";
-import { computeRepaymentWaterfall } from "@/lib/pricing";
+import { calculateInvoiceMoney, computeRepaymentWaterfall } from "@/lib/pricing";
 import { applyRepaymentWaterfall } from "@/lib/pool";
 import { daysBetween } from "@/lib/format";
 import { requireRole } from "@/lib/guard";
@@ -63,21 +63,24 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     note: `Payment recorded for invoice ${invoice.invoiceNumber}`,
   });
 
-  const originalDays = Math.max(1, daysBetween(invoice.issueDate, invoice.dueDate));
-  const fundedAt = invoice.fundedAt ?? invoice.createdAt;
-  const actualDays = Math.max(originalDays, daysBetween(fundedAt, paymentDate));
+  const money = calculateInvoiceMoney({
+    amount: amountDue,
+    advancePct: Number(invoice.advancePct ?? 0.8),
+    fundingDate: invoice.fundedAt ?? invoice.createdAt,
+    dueDate: invoice.dueDate,
+    amountPaid,
+    storedAdvanceAmount: Number(invoice.advanceAmount),
+    storedTotalCost: Number(invoice.feeAmount ?? 0),
+  });
 
   const [buyer] = await db.select().from(buyers).where(eq(buyers.id, invoice.buyerId));
-  const lossRateAnnual = 0.02; // realised: no loss since buyer paid
 
   const waterfall = computeRepaymentWaterfall({
-    amount: amountDue,
-    amountPaid,
     advanceAmount: Number(invoice.advanceAmount),
-    feeAmount: Number(invoice.feeAmount),
-    originalDays,
-    actualDays,
-    lossRateAnnual,
+    interestAmount: money.interestAmount,
+    paypalFeeAmount: money.paypalFeeAmount,
+    platformFeeAmount: money.platformFeeAmount,
+    supplierSettlementPayment: money.supplierSettlementPayment,
   });
 
   await applyRepaymentWaterfall({
@@ -99,15 +102,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       .where(eq(buyers.id, buyer.id));
   }
 
-  const lateNote =
-    waterfall.extraDaysLate > 0
-      ? ` Buyer paid ${waterfall.extraDaysLate} day(s) late; platform absorbed an extra £${waterfall.extraAccrual.toFixed(2)} of investor accrual.`
-      : " Buyer paid on or before the due date.";
+  const daysLate = Math.max(0, daysBetween(invoice.dueDate, paymentDate));
+  const lateNote = daysLate > 0
+    ? ` Buyer paid ${daysLate} day(s) late; extra interest is not modelled.`
+    : " Buyer paid on or before the due date.";
 
   await db.insert(statusEvents).values({
     invoiceId,
     status: newStatus,
-    note: `${method === "BANK_TRANSFER" ? "Bank transfer" : "PayPal"} payment of ${invoice.currency} ${amountPaid.toFixed(2)} recorded on the invoice (${paymentResult.mode}).${lateNote} Waterfall: principal £${waterfall.investorPrincipal.toFixed(2)} + investor return £${waterfall.investorReturn.toFixed(2)} to pool, reserve +£${waterfall.expectedLossReserve.toFixed(2)}, platform margin £${waterfall.platformMargin.toFixed(2)}, balance to SME £${waterfall.balanceToSme.toFixed(2)}.`,
+    note: `${method === "BANK_TRANSFER" ? "Bank transfer" : "PayPal"} payment of ${invoice.currency} ${amountPaid.toFixed(2)} recorded on the invoice (${paymentResult.mode}).${lateNote} Allocation: interest £${waterfall.investorReturn.toFixed(2)} to investor, PayPal fee £${waterfall.platformCost.toFixed(2)}, platform fee £${waterfall.platformMargin.toFixed(2)}, supplier payment £${waterfall.balanceToSme.toFixed(2)}.`,
   });
 
   const {

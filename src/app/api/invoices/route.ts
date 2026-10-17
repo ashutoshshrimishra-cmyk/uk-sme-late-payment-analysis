@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { buyers, invoices, statusEvents } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { assessRisk } from "@/lib/risk";
-import { previewPricing } from "@/lib/pricing";
+import { calculateInvoiceMoney } from "@/lib/pricing";
 import { createAndSendInvoice } from "@/lib/paypal";
 import { getOrCreatePoolState } from "@/lib/pool";
 import { askGemini } from "@/lib/gemini";
@@ -35,6 +35,7 @@ export async function GET() {
         feeAmount: invoices.feeAmount,
         amountPaid: invoices.amountPaid,
         paypalMode: invoices.paypalMode,
+        fundedAt: invoices.fundedAt,
         createdAt: invoices.createdAt,
         buyerName: buyers.name,
         buyerCompany: buyers.company,
@@ -123,12 +124,11 @@ export async function POST(request: Request) {
     buyerConcentrationShare: concentration,
   });
 
-  const pricing = previewPricing({
+  const estimatedMoney = calculateInvoiceMoney({
     amount: amountNum,
     advancePct: risk.advancePct,
-    feePct: risk.feePct,
-    lossRateAnnual: risk.lossRateAnnual,
-    daysToDue,
+    fundingDate: new Date(),
+    dueDate: due,
   });
 
   const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 90 + 10)}`;
@@ -145,7 +145,7 @@ export async function POST(request: Request) {
 
   const aiNote = await askGemini(
     `You are an invoice-finance risk analyst. In at most 2 short plain-English sentences, explain this decision to a small business owner. Do not use markdown. ` +
-      `Risk score ${risk.score}/100 (${risk.label}), advance ${(risk.advancePct * 100).toFixed(0)}%, fee ${(risk.feePct * 100).toFixed(1)}%. ` +
+      `At today's rates, the supplier receives GBP ${estimatedMoney.advanceAmount.toFixed(2)} now and GBP ${estimatedMoney.supplierFinalPayment.toFixed(2)} when the buyer pays, with a total cost of GBP ${estimatedMoney.totalCost.toFixed(2)}. ` +
       `Factors: ${JSON.stringify(risk.factors)}`,
   );
 
@@ -171,8 +171,8 @@ export async function POST(request: Request) {
       riskFactors: risk.factors,
       advancePct: risk.advancePct.toFixed(4),
       feePct: risk.feePct.toFixed(4),
-      advanceAmount: pricing.advanceAmount.toFixed(2),
-      feeAmount: pricing.feeAmount.toFixed(2),
+      advanceAmount: estimatedMoney.advanceAmount.toFixed(2),
+      feeAmount: null,
       paypalInvoiceId: paypalResult.paypalInvoiceId,
       paypalInvoiceUrl: paypalResult.paypalInvoiceUrl,
       paypalMode: paypalResult.mode,
@@ -201,7 +201,7 @@ export async function POST(request: Request) {
     invoice: safeInvoice,
     buyerToken: buyerToken?.token ?? null,
     risk,
-    pricing,
+    pricing: estimatedMoney,
     paypal: paypalResult,
   }, { status: 201 });
 }

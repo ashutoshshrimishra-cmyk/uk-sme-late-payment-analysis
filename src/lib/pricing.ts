@@ -1,47 +1,53 @@
-// Pricing and waterfall engine implementing the rule from the pitch deck
-// Appendix A1: X >= Y + F + D + M
-//   X = SME fee, Y = investor return, F = platform cost, D = expected-loss
-//   reserve, M = platform margin.
-//
-// All rates below are ASSUMPTIONS to be replaced with partner quotes
-// (see Appendix A3): investor yield 10% p.a., platform cost £15 flat.
-
-export const INVESTOR_ANNUAL_YIELD = 0.1; // assumption
-export const PLATFORM_FIXED_COST = 15.0; // payout 0.75 + credit data 4 + AI/compute 5 + ops 5.25 (rounded)
 export const CONCENTRATION_CAP = 0.2; // max 20% of pool per buyer, assumption
+export const FINANCIER_INTEREST_APR = 0.18;
+export const PAYPAL_PROCESSING_FEE_RATE = 0.029; // TODO: verify against the real UK PayPal rate
+export const PLATFORM_FEE_GBP = 50;
 
-export type PricingTerms = {
+export type InvoiceMoneyTerms = {
   amount: number;
   advancePct: number;
-  feePct: number;
-  lossRateAnnual: number;
+  fundingDate: Date | string;
+  dueDate: Date | string;
+  amountPaid?: number;
+  storedAdvanceAmount?: number;
+  storedTotalCost?: number;
+};
+
+export type InvoiceMoneyBreakdown = {
   daysToDue: number;
-};
-
-export type PricingPreview = {
   advanceAmount: number;
-  feeAmount: number;
-  balanceToSmeIfOnTime: number;
-  investorReturn: number;
-  expectedLoss: number;
-  cost: number;
-  margin: number;
+  interestAmount: number;
+  paypalFeeAmount: number;
+  platformFeeAmount: number;
+  totalCost: number;
+  supplierFinalPayment: number;
+  supplierSettlementPayment: number;
 };
 
-export function previewPricing(terms: PricingTerms): PricingPreview {
-  const advanceAmount = round2(terms.amount * terms.advancePct);
-  const feeAmount = round2(terms.amount * terms.feePct);
-  const investorReturn = round2(
-    INVESTOR_ANNUAL_YIELD * advanceAmount * (terms.daysToDue / 365),
-  );
-  const expectedLoss = round2(
-    terms.lossRateAnnual * advanceAmount * (terms.daysToDue / 365),
-  );
-  const cost = PLATFORM_FIXED_COST;
-  const margin = round2(feeAmount - investorReturn - expectedLoss - cost);
-  const balanceToSmeIfOnTime = round2(terms.amount - advanceAmount - feeAmount);
+export function calculateInvoiceMoney(terms: InvoiceMoneyTerms): InvoiceMoneyBreakdown {
+  const fundingTime = new Date(terms.fundingDate).getTime();
+  const dueTime = new Date(terms.dueDate).getTime();
+  const daysToDue = Math.max(1, Math.round((dueTime - fundingTime) / 86400000));
+  const advanceAmount = terms.storedAdvanceAmount ?? round2(terms.amount * terms.advancePct);
+  // Fixed at due date; extra interest for late payment is not modelled.
+  const interestAmount = round2(advanceAmount * FINANCIER_INTEREST_APR * daysToDue / 365);
+  const paypalFeeAmount = round2(terms.amount * PAYPAL_PROCESSING_FEE_RATE);
+  const platformFeeAmount = PLATFORM_FEE_GBP;
+  const calculatedTotalCost = round2(interestAmount + paypalFeeAmount + platformFeeAmount);
+  const totalCost = terms.storedTotalCost ?? calculatedTotalCost;
+  const supplierFinalPayment = round2(terms.amount - advanceAmount - totalCost);
+  const supplierSettlementPayment = round2((terms.amountPaid ?? terms.amount) - advanceAmount - totalCost);
 
-  return { advanceAmount, feeAmount, balanceToSmeIfOnTime, investorReturn, expectedLoss, cost, margin };
+  return {
+    daysToDue,
+    advanceAmount,
+    interestAmount,
+    paypalFeeAmount,
+    platformFeeAmount,
+    totalCost,
+    supplierFinalPayment,
+    supplierSettlementPayment,
+  };
 }
 
 export type WaterfallResult = {
@@ -57,49 +63,27 @@ export type WaterfallResult = {
 };
 
 export function computeRepaymentWaterfall(params: {
-  amount: number;
-  amountPaid: number;
   advanceAmount: number;
-  feeAmount: number;
-  originalDays: number;
-  actualDays: number;
-  lossRateAnnual: number;
+  interestAmount: number;
+  paypalFeeAmount: number;
+  platformFeeAmount: number;
+  supplierSettlementPayment: number;
 }): WaterfallResult {
-  const { amount, amountPaid, advanceAmount, feeAmount, originalDays, actualDays, lossRateAnnual } = params;
-
-  const baseInvestorReturn = round2(
-    INVESTOR_ANNUAL_YIELD * advanceAmount * (originalDays / 365),
-  );
-  const expectedLossReserve = round2(
-    lossRateAnnual * advanceAmount * (originalDays / 365),
-  );
-  const platformCost = PLATFORM_FIXED_COST;
-  const baseMargin = round2(feeAmount - baseInvestorReturn - expectedLossReserve - platformCost);
-
-  const extraDaysLate = Math.max(0, actualDays - originalDays);
-  const extraAccrual = round2(
-    INVESTOR_ANNUAL_YIELD * advanceAmount * (extraDaysLate / 365),
-  );
-
-  // Platform absorbs the extra investor accrual caused by late payment
-  // (Slide 6: "Buyer 30 days late, platform absorbs extra investor accrual").
-  const investorReturn = round2(baseInvestorReturn + extraAccrual);
-  const platformMargin = round2(baseMargin - extraAccrual);
-
-  const balanceToSmeRaw = round2(amountPaid - advanceAmount - feeAmount);
-  const balanceToSme = Math.max(0, balanceToSmeRaw);
-  const shortfall = balanceToSmeRaw < 0 ? round2(Math.abs(balanceToSmeRaw)) : 0;
+  const balanceToSme = Math.max(0, params.supplierSettlementPayment);
+  const shortfall = params.supplierSettlementPayment < 0
+    ? round2(Math.abs(params.supplierSettlementPayment))
+    : 0;
 
   return {
-    investorPrincipal: advanceAmount,
-    investorReturn,
-    expectedLossReserve,
-    platformCost,
-    platformMargin,
+    investorPrincipal: params.advanceAmount,
+    investorReturn: params.interestAmount,
+    expectedLossReserve: 0,
+    platformCost: params.paypalFeeAmount,
+    platformMargin: params.platformFeeAmount,
     balanceToSme,
     shortfall,
-    extraDaysLate,
-    extraAccrual,
+    extraDaysLate: 0,
+    extraAccrual: 0,
   };
 }
 

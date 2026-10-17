@@ -108,7 +108,7 @@ export async function applyRepaymentWaterfall(params: {
     invoiceId: params.invoiceId,
     type: "platform_cost",
     amount: -params.platformCost,
-    note: "Payout + credit data + AI/compute + ops cost",
+    note: "PayPal fee",
   });
   await recordLedgerEntry({
     invoiceId: params.invoiceId,

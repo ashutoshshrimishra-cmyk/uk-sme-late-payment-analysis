@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
+import { calculateInvoiceMoney } from "@/lib/pricing";
 
 type Invoice = {
   id: number;
@@ -167,6 +168,19 @@ export default function InvoiceDetail({
   }
 
   const currency = invoice.currency;
+  const isFunded = invoice.fundedAt !== null;
+  const moneyBreakdown = calculateInvoiceMoney({
+    amount: Number(invoice.amount),
+    advancePct: Number(invoice.advancePct ?? 0.8),
+    fundingDate: invoice.fundedAt ?? new Date(),
+    dueDate: invoice.dueDate,
+    ...(isFunded
+      ? {
+          storedAdvanceAmount: Number(invoice.advanceAmount),
+          storedTotalCost: Number(invoice.feeAmount ?? 0),
+        }
+      : {}),
+  });
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
@@ -223,7 +237,7 @@ export default function InvoiceDetail({
               <div className="text-4xl font-bold text-slate-900">{invoice.riskScore}</div>
               <div>
                 <div className="font-semibold text-slate-800">{invoice.riskLabel}</div>
-                <div className="text-xs text-slate-500">Advance {pct(invoice.advancePct)} · Fee {pct(invoice.feePct)}</div>
+                <div className="text-xs text-slate-500">You receive now {pct(invoice.advancePct)} of the invoice</div>
               </div>
             </div>
             {invoice.riskOverrideNote && (
@@ -291,9 +305,12 @@ export default function InvoiceDetail({
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="font-semibold text-slate-900">Pricing</h2>
             <dl className="mt-3 space-y-1.5 text-sm">
-              <Row label="Advance" value={money(invoice.advanceAmount, currency)} />
-              <Row label="SME fee" value={money(invoice.feeAmount, currency)} />
-              <Row label="Est. balance to SME on repayment" value={money(Number(invoice.amount) - Number(invoice.advanceAmount) - Number(invoice.feeAmount), currency)} />
+              <Row label="You receive now" value={money(moneyBreakdown.advanceAmount, currency)} />
+              <Row label="Interest" value={money(moneyBreakdown.interestAmount, currency)} />
+              <Row label="PayPal fee" value={money(moneyBreakdown.paypalFeeAmount, currency)} />
+              <Row label="Platform fee" value={money(moneyBreakdown.platformFeeAmount, currency)} />
+              <Row label="Total cost" value={money(moneyBreakdown.totalCost, currency)} />
+              <Row label="You receive when the buyer pays" value={money(moneyBreakdown.supplierFinalPayment, currency)} />
             </dl>
           </div>
 
@@ -304,7 +321,7 @@ export default function InvoiceDetail({
               {(invoice.status === "accepted" || invoice.status === "uploaded") && (
                 <div className="mt-3 space-y-3">
                   <p className="text-xs text-slate-500">
-                    Advance {money(invoice.advanceAmount, currency)} is ready through the configured payout connection. Buyer confirmation is optional.
+                    You receive {money(moneyBreakdown.advanceAmount, currency)} now through the configured payout connection.
                   </p>
                   <button disabled={busy} onClick={() => act("fund")} className="btn-primary">
                     Fund from pool

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { calculateInvoiceMoney } from "@/lib/pricing";
 
 type InvoiceRow = {
   id: number;
@@ -19,6 +20,7 @@ type InvoiceRow = {
   feePct: string | null;
   advanceAmount: string | null;
   feeAmount: string | null;
+  fundedAt: string | null;
   amountPaid: string;
   paypalMode: string;
   createdAt: string;
@@ -341,7 +343,7 @@ export default function DashboardPage() {
                     <th className="px-4 py-3 font-semibold">Buyer</th>
                     <th className="px-4 py-3 font-semibold">Amount</th>
                     <th className="px-4 py-3 font-semibold">Risk</th>
-                    <th className="px-4 py-3 font-semibold">Advance / Fee</th>
+                    <th className="px-4 py-3 font-semibold">You receive now / Total cost</th>
                     <th className="px-4 py-3 font-semibold">Status</th>
                     <th className="px-4 py-3 font-semibold">Buyer link</th>
                   </tr>
@@ -362,7 +364,20 @@ export default function DashboardPage() {
                       </td>
                     </tr>
                   )}
-                  {invoices.map((inv) => (
+                  {invoices.map((inv) => {
+                    const moneyBreakdown = calculateInvoiceMoney({
+                      amount: Number(inv.amount),
+                      advancePct: Number(inv.advancePct ?? 0.8),
+                      fundingDate: inv.fundedAt ?? new Date(),
+                      dueDate: inv.dueDate,
+                      ...(inv.fundedAt
+                        ? {
+                            storedAdvanceAmount: Number(inv.advanceAmount),
+                            storedTotalCost: Number(inv.feeAmount ?? 0),
+                          }
+                        : {}),
+                    });
+                    return (
                     <tr key={inv.id} className="border-b border-slate-100 hover:bg-[#FAF7F0]">
                       <td className="px-4 py-3">
                         <Link href={`/sme/invoices/${inv.id}`} className="font-semibold text-[#0B1F3A] underline decoration-[#C9A227] underline-offset-2">
@@ -377,8 +392,9 @@ export default function DashboardPage() {
                         <div className="text-xs text-slate-500">{inv.riskLabel}</div>
                       </td>
                       <td className="px-4 py-3 text-slate-700">
-                        {inv.advanceAmount ? money(inv.advanceAmount, inv.currency) : "-"}
-                        <div className="text-xs text-slate-500">{inv.feeAmount ? `fee ${money(inv.feeAmount, inv.currency)}` : ""}</div>
+                        You receive now {money(moneyBreakdown.advanceAmount, inv.currency)}
+                        <div className="text-xs text-slate-500">You receive when the buyer pays {money(moneyBreakdown.supplierFinalPayment, inv.currency)}</div>
+                        <div className="text-xs text-slate-500">Total cost {money(moneyBreakdown.totalCost, inv.currency)}</div>
                       </td>
                       <td className="px-4 py-3"><InvoiceStatusBadge status={inv.status} /></td>
                       <td className="px-4 py-3">
@@ -401,7 +417,8 @@ export default function DashboardPage() {
                         ) : "-"}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

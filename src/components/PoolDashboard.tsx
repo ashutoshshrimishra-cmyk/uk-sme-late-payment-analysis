@@ -37,7 +37,7 @@ const TYPE_LABEL: Record<string, string> = {
   investor_principal_returned: "Principal returned",
   investor_return: "Investor yield",
   loss_reserve: "Loss reserve top-up",
-  platform_cost: "Platform cost",
+  platform_cost: "PayPal fee",
   platform_margin: "Platform margin",
   sme_balance_payout: "Balance to SME",
   default_reserve_drawdown: "Default: reserve drawdown",
