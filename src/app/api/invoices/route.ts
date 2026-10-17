@@ -186,7 +186,10 @@ export async function POST(request: Request) {
       (status === "rejected"
         ? `AI risk score ${risk.score}/100 (${risk.label}): below minimum threshold, funding declined.`
         : `Invoice created and sent via PayPal Invoicing (${paypalResult.mode}). AI risk score ${risk.score}/100 (${risk.label}).`) +
-      (aiNote ? ` AI explanation: ${aiNote}` : ""),
+      (aiNote ? ` AI explanation: ${aiNote}` : "") +
+      (body.documentCheck?.mismatch === true && typeof body.documentCheck.details === "string"
+        ? ` Document mismatch: ${body.documentCheck.details}`
+        : ""),
   });
 
   const {

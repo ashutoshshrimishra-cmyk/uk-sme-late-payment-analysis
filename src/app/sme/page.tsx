@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 
 type InvoiceRow = {
@@ -32,6 +32,18 @@ const EMPTY_FORM = {
   amount: "",
   dueDate: "",
   description: "",
+};
+
+type ExtractedInvoice = {
+  supplierName: string;
+  buyerName: string;
+  buyerEmail: string;
+  invoiceNumber: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  description: string;
+  confidence: number;
 };
 
 function money(v: string | number, currency = "GBP") {
@@ -70,6 +82,56 @@ export default function DashboardPage() {
   const [buyerLink, setBuyerLink] = useState<{ invoiceId: number; token: string } | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const [extractedDocument, setExtractedDocument] = useState<{
+    data: ExtractedInvoice;
+    source: "gemini" | "mock";
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const documentMismatchDetails: string[] = [];
+  if (extractedDocument) {
+    const extracted = extractedDocument.data;
+    const typedAmount = Number(form.amount);
+    if (!Number.isFinite(typedAmount) || Math.abs(typedAmount - extracted.amount) / extracted.amount > 0.01) {
+      documentMismatchDetails.push(`Amount differs from extracted ${extracted.currency} ${extracted.amount.toFixed(2)}.`);
+    }
+    if (form.buyerName.trim().toLocaleLowerCase() !== extracted.buyerName.trim().toLocaleLowerCase()) {
+      documentMismatchDetails.push(`Buyer name differs from extracted “${extracted.buyerName}”.`);
+    }
+  }
+
+  async function extractFile(file: File) {
+    setExtracting(true);
+    setLastResult(null);
+    const upload = new FormData();
+    upload.append("file", file);
+    try {
+      const response = await fetch("/api/extract", { method: "POST", body: upload });
+      const result: { extracted?: ExtractedInvoice; source?: "gemini" | "mock"; error?: string } =
+        await response.json();
+      if (!response.ok || !result.extracted || !result.source) {
+        setLastResult({ error: result.error ?? "Could not extract invoice details." });
+        return;
+      }
+
+      const extracted = result.extracted;
+      setExtractedDocument({ data: extracted, source: result.source });
+      setForm((current) => ({
+        ...current,
+        smeName: extracted.supplierName,
+        buyerName: extracted.buyerName,
+        buyerEmail: extracted.buyerEmail,
+        amount: String(extracted.amount),
+        dueDate: extracted.dueDate,
+        description: extracted.description,
+      }));
+    } catch {
+      setLastResult({ error: "Network error extracting invoice details." });
+    } finally {
+      setExtracting(false);
+    }
+  }
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -117,7 +179,12 @@ export default function DashboardPage() {
       const res = await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          ...(documentMismatchDetails.length > 0
+            ? { documentCheck: { mismatch: true, details: documentMismatchDetails.join(" ") } }
+            : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -128,6 +195,7 @@ export default function DashboardPage() {
         });
         setBuyerLink(data.buyerToken ? { invoiceId: data.invoice.id, token: data.buyerToken } : null);
         setForm({ ...EMPTY_FORM });
+        setExtractedDocument(null);
         await loadInvoices();
       }
 
@@ -179,6 +247,41 @@ export default function DashboardPage() {
         <div className="mt-8 grid gap-8 lg:grid-cols-[420px_1fr]">
           <form onSubmit={onSubmit} className="h-fit rounded-xl border border-[#C9A227]/30 bg-white p-6 shadow-md">
             <h2 className="font-royal text-xl font-semibold text-[#0B1F3A]">New invoice</h2>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,image/png,image/jpeg"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void extractFile(file);
+                event.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              disabled={extracting}
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-4 rounded-lg border border-[#C9A227]/50 px-4 py-2 text-sm font-semibold text-[#0B1F3A] disabled:opacity-50"
+            >
+              {extracting ? "Extracting invoice…" : "Upload invoice (PDF/photo)"}
+            </button>
+            {extractedDocument && (
+              <p role="status" className="mt-2 text-xs font-medium text-emerald-700">
+                {extractedDocument.source === "gemini"
+                  ? "AI extracted (gemini) - please check"
+                  : "Mock data (no API key)"}
+              </p>
+            )}
+            {documentMismatchDetails.length > 0 && (
+              <div role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="font-semibold">Mismatch with uploaded document</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {documentMismatchDetails.map((detail) => <li key={detail}>{detail}</li>)}
+                </ul>
+              </div>
+            )}
 
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Your business name">

@@ -25,3 +25,118 @@ export async function askGemini(prompt: string): Promise<string | null> {
   }
   return null;
 }
+
+export type ExtractedInvoice = {
+  supplierName: string;
+  buyerName: string;
+  buyerEmail: string;
+  invoiceNumber: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  description: string;
+  confidence: number;
+};
+
+export type InvoiceExtractionResult =
+  | { ok: true; data: ExtractedInvoice; source: "gemini" | "mock" }
+  | { ok: false; error: string };
+
+function isIsoDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function isExtractedInvoice(value: unknown): value is ExtractedInvoice {
+  if (!value || typeof value !== "object") return false;
+  const invoice = value as Record<string, unknown>;
+  return (
+    typeof invoice.supplierName === "string" && invoice.supplierName.trim().length > 0 &&
+    typeof invoice.buyerName === "string" && invoice.buyerName.trim().length > 0 &&
+    typeof invoice.buyerEmail === "string" &&
+    typeof invoice.invoiceNumber === "string" && invoice.invoiceNumber.trim().length > 0 &&
+    typeof invoice.amount === "number" && Number.isFinite(invoice.amount) && invoice.amount > 0 &&
+    typeof invoice.currency === "string" && /^[A-Z]{3}$/.test(invoice.currency) &&
+    isIsoDate(invoice.dueDate) &&
+    typeof invoice.description === "string" &&
+    typeof invoice.confidence === "number" && Number.isFinite(invoice.confidence) &&
+    invoice.confidence >= 0 && invoice.confidence <= 1
+  );
+}
+
+export async function extractInvoiceFromFile(buffer: Buffer, mime: string): Promise<InvoiceExtractionResult> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    return {
+      ok: true,
+      source: "mock",
+      data: {
+        supplierName: "Mock Supplier Ltd",
+        buyerName: "Mock Buyer Ltd",
+        buyerEmail: "accounts@example.com",
+        invoiceNumber: "MOCK-INV-001",
+        amount: 1250,
+        currency: "GBP",
+        dueDate: "2026-12-31",
+        description: "Mock extracted invoice",
+        confidence: 0.5,
+      },
+    };
+  }
+
+  const model = process.env.GEMINI_MODEL?.trim();
+  if (!model) return { ok: false, error: "GEMINI_MODEL must be configured to extract invoices." };
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const prompt =
+    "Extract the invoice fields from the attached document. Return strict JSON only, with exactly these fields and types: " +
+    '{"supplierName":"string","buyerName":"string","buyerEmail":"string","invoiceNumber":"string","amount":number,"currency":"3-letter ISO code","dueDate":"YYYY-MM-DD","description":"string","confidence":number}. ' +
+    "Use an empty string for buyerEmail or description if unavailable. Do not include markdown or extra text.";
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mime, data: buffer.toString("base64") } }] }],
+          generationConfig: { responseMimeType: "application/json" },
+        }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!response.ok) {
+        if ((response.status === 503 || response.status === 429) && attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 700));
+          continue;
+        }
+        return { ok: false, error: `Gemini invoice extraction failed (${response.status}).` };
+      }
+
+      const responseData: unknown = await response.json().catch(() => null);
+      const candidates = (responseData as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      } | null)?.candidates;
+      const text = candidates?.[0]?.content?.parts?.[0]?.text;
+      if (typeof text !== "string") return { ok: false, error: "Gemini returned no invoice data." };
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        return { ok: false, error: "Gemini returned invalid invoice JSON." };
+      }
+      if (!isExtractedInvoice(parsed)) return { ok: false, error: "Gemini returned invalid invoice fields." };
+      return { ok: true, data: parsed, source: "gemini" };
+    } catch (error) {
+      if (attempt === 1) {
+        return { ok: false, error: error instanceof Error ? error.message : "Gemini invoice extraction failed." };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    }
+  }
+
+  return { ok: false, error: "Gemini invoice extraction failed." };
+}
