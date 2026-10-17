@@ -5,16 +5,22 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-inter" });
 const playfairDisplay = Playfair_Display({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-playfair" });
+const heroDisplay = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["500", "600"],
+  display: "swap",
+  variable: "--font-display",
+});
 
 export const metadata: Metadata = {
-  title: "Fast Finance | Selective invoice financing for UK SMEs",
+  title: "Dashboard | Fast Finance",
   description:
     "PayPal for invoicing and payout, AI for risk: selective financing of buyer-confirmed invoices for UK small businesses.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${playfairDisplay.variable}`}>
+    <html lang="en" className={`${inter.variable} ${playfairDisplay.variable} ${heroDisplay.variable}`}>
       <body className="bg-[#FAF7F0] text-slate-600 antialiased font-body">
         {children}
       </body>

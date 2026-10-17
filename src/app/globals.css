@@ -72,13 +72,55 @@
 	}
 }
 
-@keyframes fadeOut {
+@keyframes phoneMove {
 	from {
-		opacity: 1;
+		opacity: 0;
+		transform: translate(-100%, 0);
 	}
 
 	to {
-		opacity: 0;
+		opacity: 1;
+		transform: translate(-60%, 50%);
+	}
+}
+
+.preview-viewport {
+	container-type: inline-size;
+}
+
+.preview-track {
+	--laptop-width: min(400px, 100cqi);
+}
+
+@media (min-width: 640px) {
+	.preview-track {
+		--laptop-width: min(560px, 100cqi);
+	}
+}
+
+.phone-mockup {
+	animation-name: phoneMove;
+	animation-duration: 0.8s;
+	animation-timing-function: ease-in;
+	animation-delay: 6s;
+	animation-iteration-count: 1;
+	animation-fill-mode: forwards;
+	opacity: 0;
+	transform: translate(-100%, 0);
+}
+
+@media (max-width: 639px) {
+	.phone-mockup {
+		animation-duration: 1.4s;
+		animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.phone-mockup {
+		animation: none;
+		opacity: 1;
+		transform: translate(-60%, 50%);
 	}
 }
 

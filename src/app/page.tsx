@@ -13,36 +13,40 @@ export default function HomePage() {
         <div className="pitch-page relative isolate flex min-h-screen flex-col overflow-hidden bg-gradient-to-br from-emerald-700/70 via-teal-700/60 to-sky-800/60 text-white">
             <div className="absolute inset-0 bg-black/20" aria-hidden="true" />
             <nav className="relative z-20 w-full px-6 pb-4 pt-8 md:px-12 xl:px-20">
-                <Link href="/" className="inline-flex items-center gap-2 text-2xl font-black text-white">
-                    <span>Fast</span>
-                    <span className="font-bold text-white/80">Finance</span>
-                    <span className="ml-1 rounded-md bg-white px-2 py-1 text-xs font-bold text-blue-700">UK</span>
-                </Link>
+                <div className="flex items-center justify-between">
+                    <Link href="/" className="inline-flex items-center gap-2 text-2xl font-black text-white">
+                        <span>Fast</span>
+                        <span className="font-bold text-white/80">Finance</span>
+                        <span className="ml-1 rounded-md bg-white px-2 py-1 text-xs font-bold text-blue-700">UK</span>
+                    </Link>
+                    <nav aria-label="Main navigation">
+                        <Link href="/" aria-current="page" className="rounded-lg px-3 py-2 text-sm font-semibold text-white hover:bg-white/10">
+                            Dashboard
+                        </Link>
+                    </nav>
+                </div>
             </nav>
 
             <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col items-center gap-12 px-6 pb-16 pt-8 md:px-12 lg:flex-row lg:items-start lg:gap-8 lg:pt-10 xl:px-20">
-                <section className="hero relative z-10 flex w-full flex-col justify-center pt-4 lg:w-3/5 lg:pt-8">
-                    <h1 className="font-display mb-6 max-w-3xl select-none text-4xl font-bold uppercase leading-tight tracking-normal text-white sm:text-5xl lg:text-6xl">
-                        SME Working<br />Capital
+                <section className="hero relative z-10 flex w-full flex-col justify-center pt-4 [container-type:inline-size] lg:w-3/5 lg:pt-8">
+                    <h1
+                        className="mb-6 max-w-full select-none text-[clamp(2.25rem,5vw,4rem)] font-semibold uppercase leading-[1.05] tracking-[0.02em] text-white"
+                        style={{ fontFamily: 'var(--font-display), Georgia, "Times New Roman", serif' }}
+                    >
+                        INVOICE FINANCE, POWERED BY PAYPAL.
                     </h1>
-
-                    <p className="mb-10 max-w-xl select-none text-base font-medium text-white/90 sm:text-lg">
-                        Faster cash for SMEs when buyers pay late.
-                    </p>
-                    <p className="-mt-8 mb-10 text-xs text-white/75">
-                        Settled via PayPal Invoicing &amp; Payouts.
-                    </p>
 
                     <div className="relative z-30 mb-10 w-full max-w-3xl">
                         <PortalCards />
                     </div>
 
-                    <div className="relative mx-auto w-full max-w-[340px] sm:max-w-[560px] lg:mx-0">
-                        <div className="relative aspect-[16/10] w-full rounded-t-2xl bg-gray-900 p-2">
-                            <div className="relative h-full w-full overflow-hidden rounded-sm bg-slate-200">
+                    <div className="preview-viewport relative -ml-6 w-[calc(100%+3rem)] max-w-[400px] overflow-visible sm:max-w-[640px] lg:ml-0 lg:w-full">
+                        <div className="preview-track relative w-max pr-[60px] sm:pr-[80px]">
+                        <div className="preview-laptop relative aspect-[16/10] w-[var(--laptop-width)] overflow-visible rounded-t-2xl bg-gray-900 p-2">
+                            <div className="relative h-full w-full overflow-hidden rounded-sm bg-slate-50">
                                 <div className="absolute left-0 top-0 h-full w-0 animate-[sweep_6s_ease-in-out_forwards] overflow-hidden motion-reduce:w-full">
                                     <div className="absolute inset-y-0 left-0 w-[calc(100%/var(--p,1))]" />
-                                    <div className="relative h-full w-[324px] overflow-hidden bg-slate-50 p-2 text-slate-800 sm:w-[544px] sm:p-4">
+                                    <div className="relative h-full w-[calc(var(--laptop-width)-1rem)] overflow-hidden bg-slate-50 p-2 text-slate-800 sm:p-4">
                                         <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 sm:pb-2">
                                             <div className="flex items-center gap-1.5 sm:gap-2">
                                                 <div className="grid h-4 w-4 place-items-center rounded bg-emerald-700 text-[7px] font-bold text-white sm:h-7 sm:w-7 sm:text-xs">F</div>
@@ -109,74 +113,68 @@ export default function HomePage() {
                                                 <span className="text-slate-600">Northstar Supplies</span><span className="font-semibold">£2,600</span><span className="text-amber-700">Pending</span>
                                             </div>
                                         </div>
-                                        <div className="group absolute right-0 top-0 z-10 h-full w-[120px] animate-[fadeOut_0.8s_ease-in_6s_forwards] sm:w-[160px]">
-                                            <div className="absolute inset-y-0 left-0 right-0 overflow-hidden rounded-l-md bg-slate-50 px-1.5 pb-4 pt-5 text-slate-800 sm:px-2 sm:pt-6">
-                                                <div className="flex items-center justify-between border-b border-slate-200 pb-1">
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="grid h-3 w-3 place-items-center rounded-sm bg-emerald-700 text-[5px] font-bold text-white sm:h-4 sm:w-4 sm:text-[7px]">F</span>
-                                                        <span className="text-[6px] font-semibold sm:text-[8px]">Overview</span>
-                                                    </div>
-                                                    <span className="h-1 w-1 rounded-full bg-emerald-600" />
-                                                </div>
-
-                                                <div className="mt-1.5">
-                                                    <p className="text-[5px] text-slate-500 sm:text-[7px]">Available balance</p>
-                                                    <p className="text-[11px] font-bold sm:text-sm">£24,680</p>
-                                                    <p className="text-[5px] font-medium text-emerald-700 sm:text-[7px]">+8.4% this month</p>
-                                                </div>
-
-                                                <div className="mt-1.5 rounded border border-slate-200 bg-white p-1 sm:mt-2 sm:p-1.5">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-[5px] font-semibold sm:text-[7px]">Cash flow</span>
-                                                        <span className="text-[4px] text-slate-400 sm:text-[6px]">30 days</span>
-                                                    </div>
-                                                    <div className="mt-1 flex h-7 items-end gap-0.5 sm:h-10 sm:gap-1">
-                                                        {[35, 48, 42, 62, 55, 72, 58, 82, 68, 92, 76, 100].map((height, index) => (
-                                                            <div key={index} className="flex-1 rounded-t-[1px] bg-emerald-600" style={{ height: `${height}%` }} />
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                                <div className="mt-1.5 rounded border border-slate-200 bg-white p-1 sm:mt-2 sm:p-1.5">
-                                                    <div className="flex items-center justify-between text-[5px] sm:text-[7px]">
-                                                        <span className="text-slate-500">Due this week</span>
-                                                        <span className="font-semibold text-slate-800">£6,800</span>
-                                                    </div>
-                                                    <div className="mt-1 flex items-center justify-between border-t border-slate-100 pt-1 text-[5px] sm:text-[7px]">
-                                                        <span className="text-slate-500">Open invoices</span>
-                                                        <span className="font-semibold text-slate-800">6</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="absolute inset-0 rounded-l-lg rounded-r-none border-[3px] border-r-0 border-gray-900 transition-colors duration-200 group-hover:border-[#C9A227] group-hover:shadow-[0_0_20px_rgba(201,162,39,0.35)]" />
-                                            <div className="absolute left-1/2 top-1.5 h-3 w-10 -translate-x-1/2 rounded-full bg-gray-900" />
-                                            <div className="absolute bottom-1.5 left-1/2 h-0.5 w-10 -translate-x-1/2 rounded-full bg-gray-900/70" />
-                                        </div>
                                     </div>
                                 </div>
                             </div>
+                            <div className="phone-mockup group absolute left-[calc(var(--laptop-width)-0.5rem)] top-2 z-20 h-[calc(100%-1rem)] w-[120px] sm:w-[160px]">
+                                <div className="absolute inset-y-0 left-0 right-0 overflow-hidden rounded-l-md bg-slate-50 px-1.5 pb-4 pt-5 text-slate-800 sm:px-2 sm:pt-6">
+                                    <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                                        <div className="flex items-center gap-1">
+                                            <span className="grid h-3 w-3 place-items-center rounded-sm bg-emerald-700 text-[5px] font-bold text-white sm:h-4 sm:w-4 sm:text-[7px]">F</span>
+                                            <span className="text-[6px] font-semibold sm:text-[8px]">Overview</span>
+                                        </div>
+                                        <span className="h-1 w-1 rounded-full bg-emerald-600" />
+                                    </div>
+
+                                    <div className="mt-1.5">
+                                        <p className="text-[5px] text-slate-500 sm:text-[7px]">Available balance</p>
+                                        <p className="text-[11px] font-bold sm:text-sm">£24,680</p>
+                                        <p className="text-[5px] font-medium text-emerald-700 sm:text-[7px]">+8.4% this month</p>
+                                    </div>
+
+                                    <div className="mt-1.5 rounded border border-slate-200 bg-white p-1 sm:mt-2 sm:p-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[5px] font-semibold sm:text-[7px]">Cash flow</span>
+                                            <span className="text-[4px] text-slate-400 sm:text-[6px]">30 days</span>
+                                        </div>
+                                        <div className="mt-1 flex h-7 items-end gap-0.5 sm:h-10 sm:gap-1">
+                                            {[35, 48, 42, 62, 55, 72, 58, 82, 68, 92, 76, 100].map((height, index) => (
+                                                <div key={index} className="flex-1 rounded-t-[1px] bg-emerald-600" style={{ height: `${height}%` }} />
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-1.5 rounded border border-slate-200 bg-white p-1 sm:mt-2 sm:p-1.5">
+                                        <div className="flex items-center justify-between text-[5px] sm:text-[7px]">
+                                            <span className="text-slate-500">Due this week</span>
+                                            <span className="font-semibold text-slate-800">£6,800</span>
+                                        </div>
+                                        <div className="mt-1 flex items-center justify-between border-t border-slate-100 pt-1 text-[5px] sm:text-[7px]">
+                                            <span className="text-slate-500">Open invoices</span>
+                                            <span className="font-semibold text-slate-800">6</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="absolute inset-0 rounded-lg border-[3px] border-gray-900 transition-colors duration-200 group-hover:border-[#C9A227] group-hover:shadow-[0_0_20px_rgba(201,162,39,0.35)]" />
+                                <div className="absolute left-1/2 top-1.5 h-3 w-10 -translate-x-1/2 rounded-full bg-gray-900" />
+                                <div className="absolute bottom-1.5 left-1/2 h-0.5 w-10 -translate-x-1/2 rounded-full bg-gray-900/70" />
+                            </div>
                         </div>
 
-                        <div className="relative mx-auto h-3 w-full rounded-b-2xl bg-gray-800 shadow-xl">
+                        <div className="relative mx-auto h-3 w-[var(--laptop-width)] rounded-b-2xl bg-gray-800 shadow-xl">
                             <div className="absolute left-1/2 top-0 h-1 w-20 -translate-x-1/2 rounded-b bg-gray-600" />
                         </div>
-                        <p className="mt-2 text-center text-xs text-white/75">Illustrative preview (sample data)</p>
+                        </div>
                     </div>
                 </section>
 
                 <section className="relative z-30 flex w-full justify-center lg:w-2/5 lg:justify-end lg:pt-12">
                     <div className="w-full max-w-md select-none space-y-5 rounded-2xl border border-slate-200/60 bg-white p-5 text-slate-900 shadow-lg sm:p-6">
-                        <section className="space-y-5">
-                            <h2 className="font-display text-lg font-semibold tracking-normal text-slate-900 sm:text-xl">Why this matters</h2>
+                        <section className="space-y-4">
                             <p className="text-sm leading-relaxed text-slate-600">
                                 Don&apos;t wait 90 days to be paid. Unlock cash from unpaid invoices. Transparent pricing: see your exact cost before you accept.
                             </p>
-                        </section>
-
-                        <hr className="border-slate-100" />
-
-                        <section className="space-y-5">
-                            <h2 className="font-display text-lg font-semibold tracking-normal text-slate-900 sm:text-xl">How the app works</h2>
+                            <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">How the app works</h2>
                             <ol className="space-y-3">
                                 {[
                                     "Upload an invoice",
