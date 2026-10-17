@@ -34,6 +34,7 @@ const EMPTY_FORM = {
   amount: "",
   dueDate: "",
   description: "",
+  supplierWarranty: false,
 };
 
 type ExtractedInvoice = {
@@ -309,9 +310,20 @@ export default function DashboardPage() {
               </Field>
             </div>
 
+            <label className="mt-5 flex items-start gap-3 text-sm text-slate-700">
+              <input
+                required
+                type="checkbox"
+                checked={form.supplierWarranty}
+                onChange={(e) => setForm({ ...form, supplierWarranty: e.target.checked })}
+                className="mt-0.5"
+              />
+              <span>I confirm this invoice is genuine, the goods or services were delivered, and my customer has not disputed it.</span>
+            </label>
+
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !form.supplierWarranty}
               className="mt-5 h-11 w-full rounded-lg bg-[#0B1F3A] px-6 text-sm font-semibold text-white hover:bg-[#13315c] disabled:opacity-50"
             >
               {submitting ? "Scoring & sending via PayPal…" : "Create & send invoice"}

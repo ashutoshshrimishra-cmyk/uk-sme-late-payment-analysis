@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { buyers, invoices, statusEvents } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lt, notInArray, sql } from "drizzle-orm";
 import { assessRisk } from "@/lib/risk";
 import { calculateInvoiceMoney } from "@/lib/pricing";
 import { createAndSendInvoice } from "@/lib/paypal";
@@ -64,6 +64,9 @@ export async function POST(request: Request) {
   if (!body) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+  if (body.supplierWarranty !== true) {
+    return NextResponse.json({ error: "Please confirm the invoice is genuine and undisputed" }, { status: 400 });
+  }
 
   const { smeName, smeEmail, buyerName, buyerEmail, amount, dueDate, description } = body as Record<
     string,
@@ -85,6 +88,29 @@ export async function POST(request: Request) {
   const due = new Date(dueDate);
   if (Number.isNaN(due.getTime())) {
     return NextResponse.json({ error: "dueDate is invalid" }, { status: 400 });
+  }
+
+  const dueDayStart = new Date(due);
+  dueDayStart.setUTCHours(0, 0, 0, 0);
+  const dueDayEnd = new Date(dueDayStart.getTime() + 24 * 60 * 60 * 1000);
+  const [duplicate] = await db
+    .select({ invoiceNumber: invoices.invoiceNumber })
+    .from(invoices)
+    .innerJoin(buyers, eq(invoices.buyerId, buyers.id))
+    .where(and(
+      sql`lower(${buyers.email}) = lower(${String(buyerEmail).trim()})`,
+      eq(invoices.amount, amountNum.toFixed(2)),
+      gte(invoices.dueDate, dueDayStart),
+      lt(invoices.dueDate, dueDayEnd),
+      notInArray(invoices.status, ["rejected", "defaulted"]),
+    ))
+    .limit(1);
+
+  if (duplicate) {
+    return NextResponse.json(
+      { error: `This looks like a duplicate of ${duplicate.invoiceNumber}. If it is a different invoice, change the amount or due date.` },
+      { status: 409 },
+    );
   }
 
   // Find or create the buyer.
@@ -189,7 +215,8 @@ export async function POST(request: Request) {
       (aiNote ? ` AI explanation: ${aiNote}` : "") +
       (body.documentCheck?.mismatch === true && typeof body.documentCheck.details === "string"
         ? ` Document mismatch: ${body.documentCheck.details}`
-        : ""),
+        : "") +
+      " Supplier confirmed the invoice is genuine and undisputed.",
   });
 
   const {
