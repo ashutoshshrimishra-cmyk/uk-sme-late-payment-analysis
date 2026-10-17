@@ -14,8 +14,7 @@ type InvoiceRow = {
   currency: string;
   dueDate: string;
   status: string;
-  riskScore: number | null;
-  riskLabel: string | null;
+  fundingChance: string;
   advancePct: string | null;
   feePct: string | null;
   advanceAmount: string | null;
@@ -199,7 +198,7 @@ export default function DashboardPage() {
         setLastResult({ error: data.error ?? "Something went wrong" });
       } else {
         setLastResult({
-          message: `Invoice ${data.invoice.invoiceNumber} created. AI score ${data.risk.score}/100 (${data.risk.label}).`,
+          message: `Invoice ${data.invoice.invoiceNumber} created. Funding chances: ${data.fundingChance}.`,
         });
         setBuyerLink(data.buyerToken ? { invoiceId: data.invoice.id, token: data.buyerToken } : null);
         setForm({ ...EMPTY_FORM });
@@ -363,7 +362,7 @@ export default function DashboardPage() {
                     <th className="px-4 py-3 font-semibold">Invoice</th>
                     <th className="px-4 py-3 font-semibold">Buyer</th>
                     <th className="px-4 py-3 font-semibold">Amount</th>
-                    <th className="px-4 py-3 font-semibold">Risk</th>
+                    <th className="px-4 py-3 font-semibold">Funding chances</th>
                     <th className="px-4 py-3 font-semibold">You receive now / Total cost</th>
                     <th className="px-4 py-3 font-semibold">Status</th>
                     <th className="px-4 py-3 font-semibold">Buyer link</th>
@@ -408,10 +407,7 @@ export default function DashboardPage() {
                       </td>
                       <td className="px-4 py-3 text-slate-700">{inv.buyerName ?? "-"}</td>
                       <td className="px-4 py-3 text-slate-700">{money(inv.amount, inv.currency)}</td>
-                      <td className="px-4 py-3 text-slate-700">
-                        {inv.riskScore != null ? `${inv.riskScore}/100` : "-"}
-                        <div className="text-xs text-slate-500">{inv.riskLabel}</div>
-                      </td>
+                      <td className="px-4 py-3 text-slate-700">{inv.fundingChance}</td>
                       <td className="px-4 py-3 text-slate-700">
                         You receive now {money(moneyBreakdown.advanceAmount, inv.currency)}
                         <div className="text-xs text-slate-500">You receive when the buyer pays {money(moneyBreakdown.supplierFinalPayment, inv.currency)}</div>

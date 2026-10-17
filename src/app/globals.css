@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+:root {
+	--invoice-risk-low: #2f6b4f;
+	--invoice-risk-low-bg: #eef5f0;
+	--invoice-risk-low-border: #d5e5da;
+	--invoice-risk-medium: #8a6d1f;
+	--invoice-risk-medium-bg: #f7f1df;
+	--invoice-risk-medium-border: #e8ddb5;
+	--invoice-risk-high: #9a5b2e;
+	--invoice-risk-high-bg: #f8eee6;
+	--invoice-risk-high-border: #ead7c8;
+	--invoice-risk-very-high: #7a2e3a;
+	--invoice-risk-very-high-bg: #f6ecee;
+	--invoice-risk-very-high-border: #e3cdd2;
+}
+
 .font-body {
 	font-family: var(--font-inter), sans-serif;
 }

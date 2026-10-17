@@ -29,6 +29,18 @@ export type RiskAssessment = {
   decision: "approved" | "declined";
 };
 
+export type FundingChance = "High chance" | "Fair chance" | "Low chance" | "Very low chance";
+
+export function getFundingChance(label: string | null | undefined): FundingChance | "Unavailable" {
+  switch (label) {
+    case "Low risk": return "High chance";
+    case "Medium risk": return "Fair chance";
+    case "High risk": return "Low chance";
+    case "Very high risk": return "Very low chance";
+    default: return "Unavailable";
+  }
+}
+
 export type BuyerProfile = {
   creditScore: number; // 0-100
   latePaymentRate: number; // 0-1

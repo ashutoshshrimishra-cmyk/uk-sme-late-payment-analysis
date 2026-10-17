@@ -3,8 +3,19 @@ import { db } from "@/db";
 import { buyers, invoices, statusEvents, poolLedger } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
 import { requireRole } from "@/lib/guard";
+import { getFundingChance } from "@/lib/risk";
 
 export const dynamic = "force-dynamic";
+
+function hideRiskText(note: string | null): string | null {
+  if (!note) return note;
+  return note
+    .replace(/Ops override: AI risk score.*?(?=Buyer data source:|$)/g, "Human review completed.")
+    .replace(/AI risk score \d+\/100 \([^)]+\)(?:: [^.]+)?\./g, "")
+    .replace(/AI explanation:[\s\S]*?(?=Document mismatch:|Supplier confirmed|Buyer data source:|$)/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const g = await requireRole("sme", "financer");
@@ -44,10 +55,24 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     ...safeInvoice
   } = rows[0].invoices;
 
+  const invoice = g.role === "sme"
+    ? {
+        ...safeInvoice,
+        riskScore: null,
+        riskLabel: null,
+        riskFactors: null,
+        riskOverrideNote: null,
+        fundingChance: getFundingChance(safeInvoice.riskLabel),
+      }
+    : safeInvoice;
+  const safeEvents = g.role === "sme"
+    ? events.map((event) => ({ ...event, note: hideRiskText(event.note) }))
+    : events;
+
   return NextResponse.json({
-    invoice: safeInvoice,
-    buyer: rows[0].buyers,
-    events,
+    invoice,
+    buyer: g.role === "sme" ? null : rows[0].buyers,
+    events: safeEvents,
     ledger,
   });
 }

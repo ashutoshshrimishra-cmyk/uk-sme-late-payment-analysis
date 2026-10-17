@@ -2,8 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import StatusBadge from "@/components/StatusBadge";
-import { calculateInvoiceMoney } from "@/lib/pricing";
+import {
+  calculateInvoiceMoney,
+  FINANCIER_INTEREST_APR,
+  round2,
+} from "@/lib/pricing";
 
 type Invoice = {
   id: number;
@@ -18,6 +21,7 @@ type Invoice = {
   status: string;
   riskScore: number | null;
   riskLabel: string | null;
+  fundingChance?: string;
   riskFactors: { name: string; impact: number; detail: string }[] | null;
   riskOverrideNote: string | null;
   advancePct: string | null;
@@ -68,6 +72,7 @@ export default function InvoiceDetail({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [expandedEvents, setExpandedEvents] = useState<Record<number, boolean>>({});
 
   const [payAmount, setPayAmount] = useState("");
   const [payLate, setPayLate] = useState(false);
@@ -79,7 +84,7 @@ export default function InvoiceDetail({
       const text = await res.text();
       let data: {
         invoice?: Invoice;
-        buyer?: Buyer;
+        buyer?: Buyer | null;
         events?: EventRow[];
         ledger?: LedgerRow[];
         error?: string;
@@ -152,15 +157,15 @@ export default function InvoiceDetail({
   }
 
   if (loading) {
-    return <main className="mx-auto max-w-5xl px-6 py-12 text-slate-500">Loading…</main>;
+    return <main className="mx-auto max-w-5xl px-6 py-12 text-sm leading-[1.5] text-slate-600">Loading…</main>;
   }
   if (!invoice) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-12">
-        <p role="alert" className="text-rose-600">
+        <p role="alert" className="text-sm leading-[1.5] text-slate-700">
           {message?.text ?? "Invoice not found."}
         </p>
-        <Link href={homeHref} className="mt-4 inline-block text-sm font-semibold text-indigo-600 hover:underline">
+        <Link href={homeHref} className="mt-4 inline-block text-sm font-semibold text-[#0B1F3A] underline decoration-[#C9A227] underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227]">
           ← Back to {showActions ? "queue" : "dashboard"}
         </Link>
       </main>
@@ -181,99 +186,157 @@ export default function InvoiceDetail({
         }
       : {}),
   });
+  const effectiveAdvancePct = Number(invoice.amount) > 0
+    ? moneyBreakdown.advanceAmount / Number(invoice.amount) * 100
+    : 0;
+  const riskScore = Math.max(0, Math.min(100, Number(invoice.riskScore) || 0));
+  const riskBandStyles: Record<string, string> = {
+    "Low risk": "border-[var(--invoice-risk-low-border)] bg-[var(--invoice-risk-low-bg)] text-[var(--invoice-risk-low)]",
+    "Medium risk": "border-[var(--invoice-risk-medium-border)] bg-[var(--invoice-risk-medium-bg)] text-[var(--invoice-risk-medium)]",
+    "High risk": "border-[var(--invoice-risk-high-border)] bg-[var(--invoice-risk-high-bg)] text-[var(--invoice-risk-high)]",
+    "Very high risk": "border-[var(--invoice-risk-very-high-border)] bg-[var(--invoice-risk-very-high-bg)] text-[var(--invoice-risk-very-high)]",
+  };
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <Link href={homeHref} className="text-xs font-semibold text-indigo-600 hover:underline">
+    <main className="min-h-screen bg-[#FAF7F0] px-4 py-8 font-body text-sm leading-[1.5] text-slate-700 sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-6xl">
+      <Link href={homeHref} className="text-sm font-semibold text-[#0B1F3A] underline decoration-[#C9A227] underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#C9A227]">
         ← Back to {showActions ? "queue" : "dashboard"}
       </Link>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">{invoice.invoiceNumber}</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="font-royal text-3xl font-semibold text-[#0B1F3A]">{invoice.invoiceNumber}</h1>
+          <p className="mt-1 text-sm leading-[1.5] text-slate-700">
             {invoice.smeName} → {buyer?.name} ({buyer?.email})
           </p>
         </div>
-        <StatusBadge status={invoice.status} />
+        <InvoiceStatusPill status={invoice.status} />
       </div>
 
       {message && (
-        <div className={`mt-4 rounded-xl px-4 py-3 text-sm ${message.type === "error" ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
+        <div className="mt-5 rounded-xl border border-[#D9C99E] bg-white px-4 py-3 text-sm leading-[1.5] text-slate-700">
           {message.text}
         </div>
       )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+      {showActions && (
+        <FinancerWorkspace
+          invoice={invoice}
+          currency={currency}
+          effectiveAdvancePct={effectiveAdvancePct}
+          defaultDaysToDue={moneyBreakdown.daysToDue}
+        />
+      )}
+
+      <div className="mt-6 grid items-start gap-6 lg:grid-cols-3">
         {/* Core details */}
         <div className="space-y-6 lg:col-span-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="font-semibold text-slate-900">Invoice</h2>
-            <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
-              <dt className="text-slate-500">Amount</dt>
-              <dd className="text-right font-semibold text-slate-900">{money(invoice.amount, currency)}</dd>
-              <dt className="text-slate-500">Amount paid so far</dt>
-              <dd className="text-right text-slate-800">{money(invoice.amountPaid, currency)}</dd>
-              <dt className="text-slate-500">Issue date</dt>
-              <dd className="text-right text-slate-800">{dt(invoice.issueDate)}</dd>
-              <dt className="text-slate-500">Due date</dt>
-              <dd className="text-right text-slate-800">{dt(invoice.dueDate)}</dd>
-              <dt className="text-slate-500">Description</dt>
-              <dd className="text-right text-slate-800">{invoice.description || "-"}</dd>
-              <dt className="text-slate-500">PayPal invoice ID</dt>
+          <div className="rounded-2xl border border-[#E7DFCF] bg-white p-6 shadow-sm">
+            <h2 className="font-royal text-lg font-semibold text-[#0B1F3A]">Invoice</h2>
+            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              <dt className="font-semibold text-[#0B1F3A]">Amount</dt>
+              <dd className="text-right tabular-nums text-slate-700">{money(invoice.amount, currency)}</dd>
+              <dt className="font-semibold text-[#0B1F3A]">Amount paid so far</dt>
+              <dd className="text-right tabular-nums text-slate-700">{money(invoice.amountPaid, currency)}</dd>
+              <dt className="font-semibold text-[#0B1F3A]">Issue date</dt>
+              <dd className="text-right text-slate-700">{dt(invoice.issueDate)}</dd>
+              <dt className="font-semibold text-[#0B1F3A]">Due date</dt>
+              <dd className="text-right text-slate-700">{dt(invoice.dueDate)}</dd>
+              <dt className="font-semibold text-[#0B1F3A]">Description</dt>
+              <dd className="text-right text-slate-700">{invoice.description || "-"}</dd>
+              <dt className="font-semibold text-[#0B1F3A]">PayPal invoice ID</dt>
               <dd className="text-right font-mono text-xs text-slate-700">{invoice.paypalInvoiceId}</dd>
               {invoice.paypalPayoutBatchId && (
                 <>
-                  <dt className="text-slate-500">Payout batch ID</dt>
-                  <dd className="text-right font-mono text-xs text-slate-700">{invoice.paypalPayoutBatchId}</dd>
+                  <dt className="font-semibold text-[#0B1F3A]">Payout batch ID</dt>
+                  <dd className="text-right tabular-nums text-slate-700">{invoice.paypalPayoutBatchId}</dd>
                 </>
               )}
             </dl>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="font-semibold text-slate-900">Explainable AI risk score</h2>
-            <div className="mt-3 flex items-center gap-4">
-              <div className="text-4xl font-bold text-slate-900">{invoice.riskScore}</div>
-              <div>
-                <div className="font-semibold text-slate-800">{invoice.riskLabel}</div>
-                <div className="text-xs text-slate-500">You receive now {(Number(invoice.advanceAmount) / Number(invoice.amount) * 100).toFixed(1)}% of the invoice</div>
-              </div>
-            </div>
-            {invoice.riskOverrideNote && (
-              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Human override: {invoice.riskOverrideNote}</p>
-            )}
-            <ul className="mt-4 space-y-1.5 text-sm">
-              {invoice.riskFactors?.map((f) => (
-                <li key={f.name} className="flex items-center justify-between gap-3 border-b border-slate-100 pb-1.5 last:border-0">
-                  <span className="text-slate-600">{f.name}: <span className="text-slate-400">{f.detail}</span></span>
-                  <span className={`font-semibold ${f.impact > 0 ? "text-emerald-600" : f.impact < 0 ? "text-rose-600" : "text-slate-400"}`}>
-                    {f.impact > 0 ? `+${f.impact}` : f.impact}
+          <div className="rounded-2xl border border-[#E7DFCF] bg-white p-6 shadow-sm">
+            <h2 className="font-royal text-lg font-semibold text-[#0B1F3A]">{showActions ? "Buyer risk" : "Funding chances"}</h2>
+            {showActions ? (
+              <>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <span className="text-5xl font-semibold tabular-nums leading-none text-[#0B1F3A]">{invoice.riskScore}</span>
+                  <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${riskBandStyles[invoice.riskLabel ?? ""] ?? "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                    {invoice.riskLabel ?? "Unrated"}
                   </span>
-                </li>
-              ))}
-            </ul>
+                </div>
+                <div
+                  role="meter"
+                  aria-label="Buyer risk score"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={riskScore}
+                  className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#F1EBDD]"
+                >
+                  <div className="h-full rounded-full bg-[#C9A227]" style={{ width: `${riskScore}%` }} />
+                </div>
+                <p className="mt-2 text-[13px] text-slate-500">Score from 0 to 100</p>
+                {invoice.riskOverrideNote && (
+                  <p className="mt-3 rounded-lg border border-[#E7DFCF] bg-[#FAF7F0] px-3 py-2 text-sm leading-[1.5] text-slate-700">Human override: {invoice.riskOverrideNote}</p>
+                )}
+                <ul className="mt-4 space-y-1.5 text-sm">
+                  {invoice.riskFactors?.map((f) => (
+                    <li key={f.name} className="flex items-start justify-between gap-4 border-b border-slate-100 py-2 last:border-0">
+                      <span className="leading-[1.5] text-slate-700">{f.name}: {f.detail}</span>
+                      <span
+                        className="shrink-0 font-semibold tabular-nums"
+                        style={{ color: f.impact > 0 ? "var(--invoice-risk-low)" : f.impact < 0 ? "var(--invoice-risk-very-high)" : "#64748B" }}
+                      >
+                        {f.impact > 0 ? `+${f.impact}` : f.impact}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="mt-3 text-lg font-semibold leading-[1.5] text-[#0B1F3A]">{invoice.fundingChance ?? "Unavailable"}</p>
+            )}
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="font-semibold text-slate-900">Status timeline</h2>
-            <ol className="mt-4 space-y-4 border-l border-slate-200 pl-4">
+          <div className="rounded-2xl border border-[#E7DFCF] bg-white p-6 shadow-sm">
+            <h2 className="font-royal text-lg font-semibold text-[#0B1F3A]">Status timeline</h2>
+            <ol className="mt-5 space-y-6 border-l border-slate-200 pl-4">
               {events.map((e) => (
                 <li key={e.id} className="relative">
-                  <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-indigo-500" />
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={e.status} />
-                    <span className="text-xs text-slate-400">{dt(e.createdAt)}</span>
+                  <span className="absolute -left-[21px] top-2 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#C9A227] ring-1 ring-[#D9C99E]" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <InvoiceStatusPill status={e.status} />
+                    <span className="text-[13px] text-slate-500">{dt(e.createdAt)}</span>
                   </div>
-                  {e.note && <p className="mt-1 text-sm text-slate-600">{e.note}</p>}
+                  {e.note && (() => {
+                    const isLong = e.note.length > 220;
+                    const isExpanded = expandedEvents[e.id] ?? false;
+                    return (
+                      <>
+                        <p className={`mt-2 text-sm leading-[1.5] text-slate-700 ${isLong && !isExpanded ? "line-clamp-2" : ""}`}>
+                          {e.note}
+                        </p>
+                        {isLong && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedEvents((current) => ({ ...current, [e.id]: !isExpanded }))}
+                            className="mt-1 text-[13px] font-semibold text-[#0B1F3A] underline decoration-[#C9A227] underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227]"
+                          >
+                            {isExpanded ? "Show less" : "Show more"}
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
                 </li>
               ))}
             </ol>
           </div>
 
           {ledger.length > 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="font-semibold text-slate-900">Waterfall ledger for this invoice</h2>
+            <div className="rounded-2xl border border-[#E7DFCF] bg-white p-6 shadow-sm">
+              <h2 className="font-royal text-lg font-semibold text-[#0B1F3A]">Waterfall ledger for this invoice</h2>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full min-w-[520px] border-collapse text-left text-sm">
                   <thead className="text-slate-500">
@@ -287,7 +350,7 @@ export default function InvoiceDetail({
                     {ledger.map((l) => (
                       <tr key={l.id}>
                         <td className="border-b border-slate-100 py-2 pr-3 capitalize text-slate-700">{l.type.replace(/_/g, " ")}</td>
-                        <td className={`border-b border-slate-100 py-2 pr-3 font-semibold ${Number(l.amount) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                        <td className="border-b border-slate-100 py-2 pr-3 text-right tabular-nums text-slate-700">
                           {money(l.amount, currency)}
                         </td>
                         <td className="border-b border-slate-100 py-2 text-xs text-slate-500">{l.note}</td>
@@ -301,29 +364,29 @@ export default function InvoiceDetail({
         </div>
 
         {/* Actions */}
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="font-semibold text-slate-900">Pricing</h2>
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-[#E7DFCF] bg-white p-6 shadow-sm">
+            <h2 className="font-royal text-lg font-semibold text-[#0B1F3A]">Pricing</h2>
             <dl className="mt-3 space-y-1.5 text-sm">
-              <Row label="You receive now" value={money(moneyBreakdown.advanceAmount, currency)} />
+              <Row label="You receive now" value={money(moneyBreakdown.advanceAmount, currency)} emphasis />
               <Row label="Interest" value={money(moneyBreakdown.interestAmount, currency)} />
               <Row label="PayPal fee" value={money(moneyBreakdown.paypalFeeAmount, currency)} />
               <Row label="Platform fee" value={money(moneyBreakdown.platformFeeAmount, currency)} />
-              <Row label="Total cost" value={money(moneyBreakdown.totalCost, currency)} />
+              <Row label="Total cost" value={money(moneyBreakdown.totalCost, currency)} subtotal />
               <Row label="You receive when the buyer pays" value={money(moneyBreakdown.supplierFinalPayment, currency)} />
             </dl>
           </div>
 
           {showActions && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="font-semibold text-slate-900">Actions</h2>
+            <div className="rounded-2xl border border-[#E7DFCF] bg-white p-6 shadow-sm">
+              <h2 className="font-royal text-lg font-semibold text-[#0B1F3A]">Actions</h2>
 
               {(invoice.status === "accepted" || invoice.status === "uploaded") && (
-                <div className="mt-3 space-y-3">
-                  <p className="text-xs text-slate-500">
+                <div className="mt-4 space-y-4">
+                  <p className="text-[13px] leading-[1.5] text-slate-600">
                     You receive {money(moneyBreakdown.advanceAmount, currency)} now through the configured payout connection.
                   </p>
-                  <button disabled={busy} onClick={() => act("fund")} className="btn-primary">
+                  <button disabled={busy} onClick={() => act("fund")} className="w-full rounded-xl bg-[#0B1F3A] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#C9A227] hover:text-[#0B1F3A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227] disabled:opacity-50">
                     Fund from pool
                   </button>
                 </div>
@@ -332,15 +395,15 @@ export default function InvoiceDetail({
               {(invoice.status === "funded" || invoice.status === "partially_paid") && (
                 <div className="mt-3 space-y-3">
                   <p className="text-xs text-slate-500">Record the buyer&apos;s payment (bank transfer by default) against the invoice.</p>
-                  <label className="block text-xs font-medium text-slate-600">
+                  <label className="block text-sm font-semibold text-[#0B1F3A]">
                     Amount paid
-                    <input value={payAmount} onChange={(e) => setPayAmount(e.target.value)} type="number" step="0.01" className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm" />
+                    <input value={payAmount} onChange={(e) => setPayAmount(e.target.value)} type="number" step="0.01" className="mt-2 w-full rounded-lg border border-slate-300 p-2 text-sm tabular-nums text-right text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#C9A227]" />
                   </label>
-                  <label className="flex items-center gap-2 text-xs text-slate-600">
-                    <input type="checkbox" checked={payLate} onChange={(e) => setPayLate(e.target.checked)} />
+                  <label className="flex items-center gap-2 text-sm font-semibold text-[#0B1F3A]">
+                    <input type="checkbox" checked={payLate} onChange={(e) => setPayLate(e.target.checked)} className="accent-[#0B1F3A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227]" />
                     Record payment 30 days late
                   </label>
-                  <button
+                    <button
                     disabled={busy}
                     onClick={() =>
                       act("pay", {
@@ -350,12 +413,12 @@ export default function InvoiceDetail({
                           : invoice.dueDate,
                       })
                     }
-                    className="btn-primary"
+                    className="w-full rounded-xl bg-[#0B1F3A] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#C9A227] hover:text-[#0B1F3A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227] disabled:opacity-50"
                   >
                     Record payment
                   </button>
                   {invoice.status === "funded" && (
-                    <button disabled={busy} onClick={() => act("default", { reason: "Buyer insolvency" })} className="btn-secondary w-full">
+                    <button disabled={busy} onClick={() => act("default", { reason: "Buyer insolvency" })} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#0B1F3A] hover:bg-[#FAF7F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227] disabled:opacity-50">
                       Record default
                     </button>
                   )}
@@ -363,15 +426,15 @@ export default function InvoiceDetail({
               )}
 
               {["paid", "partially_paid", "defaulted", "rejected"].includes(invoice.status) && (
-                <p className="mt-3 text-sm text-slate-500">This invoice has reached a final or near-final state. See the timeline and ledger for the full outcome.</p>
+                <p className="mt-3 text-sm leading-[1.5] text-slate-600">This invoice has reached a final or near-final state. See the timeline and ledger for the full outcome.</p>
               )}
             </div>
           )}
 
-          {buyer && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="font-semibold text-slate-900">Buyer profile</h2>
-              <dl className="mt-3 space-y-1.5 text-sm">
+          {showActions && buyer && (
+            <div className="rounded-2xl border border-[#E7DFCF] bg-white p-6 shadow-sm">
+              <h2 className="font-royal text-lg font-semibold text-[#0B1F3A]">Buyer profile</h2>
+              <dl className="mt-4 space-y-3 text-sm">
                 <Row label="Credit score" value={`${buyer.creditScore}/100`} />
                 <Row label="Late-payment rate" value={`${Math.round(Number(buyer.latePaymentRate) * 100)}%`} />
                 <Row label="Invoices financed before" value={String(buyer.totalInvoicesFinanced)} />
@@ -381,8 +444,195 @@ export default function InvoiceDetail({
         </div>
       </div>
 
-      <style>{`.btn-primary { width: 100%; border-radius: 9999px; background: #0f172a; color: white; padding: 0.6rem 1rem; font-size: 0.875rem; font-weight: 600; } .btn-primary:disabled { opacity: 0.5; } .btn-secondary { border-radius: 9999px; border: 1px solid #fecdd3; color: #be123c; padding: 0.5rem 1rem; font-size: 0.8rem; font-weight: 600; background: white; }`}</style>
+      </div>
     </main>
+  );
+}
+
+function FinancerWorkspace({
+  invoice,
+  currency,
+  effectiveAdvancePct,
+  defaultDaysToDue,
+}: {
+  invoice: Invoice;
+  currency: string;
+  effectiveAdvancePct: number;
+  defaultDaysToDue: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"calculator" | "notes">("calculator");
+  const [advancePct, setAdvancePct] = useState(effectiveAdvancePct.toFixed(1));
+  const [daysToDue, setDaysToDue] = useState(String(defaultDaysToDue));
+  const noteKey = `financer-note:${invoice.id}`;
+  const [noteLoadedFor, setNoteLoadedFor] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [noteSaved, setNoteSaved] = useState(true);
+
+  useEffect(() => {
+    try {
+      setNote(window.localStorage.getItem(noteKey) ?? "");
+    } catch {
+      setNote("");
+    }
+    setNoteLoadedFor(noteKey);
+  }, [noteKey]);
+
+  useEffect(() => {
+    if (noteLoadedFor !== noteKey) return;
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(noteKey, note);
+        setNoteSaved(true);
+      } catch {
+        setNoteSaved(false);
+      }
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [note, noteKey, noteLoadedFor]);
+
+  const days = Math.max(1, Math.round(Number(daysToDue) || 1));
+  const anchorFundingDate = new Date(Date.UTC(2026, 0, 1));
+  const whatIf = calculateInvoiceMoney({
+    amount: Number(invoice.amount),
+    advancePct: Math.max(0, Math.min(100, Number(advancePct) || 0)) / 100,
+    fundingDate: anchorFundingDate,
+    dueDate: new Date(anchorFundingDate.getTime() + days * 86400000),
+  });
+  const investorReturn = whatIf.advanceAmount > 0
+    ? `${round2((whatIf.interestAmount / whatIf.advanceAmount) * 100).toFixed(2)}%`
+    : "N/A";
+
+  function resetCalculator() {
+    setAdvancePct(effectiveAdvancePct.toFixed(1));
+    setDaysToDue(String(defaultDaysToDue));
+  }
+
+  function clearNote() {
+    setNote("");
+    setNoteSaved(true);
+    try {
+      window.localStorage.removeItem(noteKey);
+    } catch {
+      setNoteSaved(false);
+    }
+  }
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-2xl border border-[#D9C99E] bg-white shadow-sm">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between px-6 py-4 text-left font-semibold text-[#0B1F3A] hover:bg-[#FCF9F1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#C9A227]"
+      >
+        <span>Workspace</span>
+        <span aria-hidden="true" className="text-lg text-[#9A7620]">{open ? "−" : "+"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-[#E7DFCF] p-6">
+          <div role="tablist" aria-label="Financer workspace" className="flex gap-2 border-b border-[#E7DFCF]">
+            {(["calculator", "notes"] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                role="tab"
+                aria-selected={tab === item}
+                onClick={() => setTab(item)}
+                className={`-mb-px border-b-2 px-3 py-2 text-sm font-semibold capitalize focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227] ${tab === item ? "border-[#C9A227] text-[#0B1F3A]" : "border-transparent text-slate-500 hover:text-[#0B1F3A]"}`}
+              >
+                {item === "calculator" ? "Calculator" : "Notes"}
+              </button>
+            ))}
+          </div>
+
+          {tab === "calculator" ? (
+            <div role="tabpanel" className="pt-5">
+              <div className="grid gap-4 sm:grid-cols-3">
+                    <label className="text-sm font-semibold text-[#0B1F3A]">
+                  Advance %
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={advancePct}
+                    onChange={(event) => setAdvancePct(event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 tabular-nums focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#C9A227]"
+                  />
+                </label>
+                    <label className="text-sm font-semibold text-[#0B1F3A]">
+                  Days to due
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={daysToDue}
+                    onChange={(event) => setDaysToDue(event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 tabular-nums focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#C9A227]"
+                  />
+                </label>
+                    <label className="text-sm font-semibold text-[#0B1F3A]">
+                  Financier APR
+                  <input
+                    readOnly
+                    value={`${(FINANCIER_INTEREST_APR * 100).toFixed(1)}%`}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 tabular-nums text-slate-600"
+                  />
+                </label>
+              </div>
+
+              <dl className="mt-5 grid gap-x-8 gap-y-2 sm:grid-cols-2">
+                <MoneyRow label="Advance" value={money(whatIf.advanceAmount, currency)} />
+                <MoneyRow label="Interest" value={money(whatIf.interestAmount, currency)} />
+                <MoneyRow label="PayPal fee" value={money(whatIf.paypalFeeAmount, currency)} />
+                <MoneyRow label="Platform fee" value={money(whatIf.platformFeeAmount, currency)} />
+                <MoneyRow label="Total cost" value={money(whatIf.totalCost, currency)} subtotal />
+                <MoneyRow label="Supplier receives at settlement" value={money(whatIf.supplierFinalPayment, currency)} emphasis />
+                <MoneyRow label="Investor return on advance" value={investorReturn} />
+              </dl>
+
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm leading-[1.5] text-slate-600">What-if only. This does not change the invoice.</p>
+                <button
+                  type="button"
+                  onClick={resetCalculator}
+                  className="rounded-lg border border-[#D9C99E] px-3 py-2 text-sm font-semibold text-[#0B1F3A] hover:bg-[#FCF9F1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227]"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div role="tabpanel" className="pt-5">
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor={`financer-note-${invoice.id}`} className="text-sm font-semibold text-[#0B1F3A]">Private note</label>
+                <span role="status" className="text-[13px] text-slate-500">{noteSaved ? "Saved" : "Saving…"}</span>
+              </div>
+              <textarea
+                id={`financer-note-${invoice.id}`}
+                value={note}
+                onChange={(event) => {
+                  setNote(event.target.value);
+                  setNoteSaved(false);
+                }}
+                rows={5}
+                className="mt-2 w-full rounded-lg border border-slate-300 p-3 text-sm leading-[1.5] text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#C9A227]"
+              />
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={clearNote}
+                  className="rounded-lg border border-[#D9C99E] px-3 py-2 text-sm font-semibold text-[#0B1F3A] hover:bg-[#FCF9F1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227]"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -391,11 +641,46 @@ function pct(v: string | null) {
   return `${Math.round(Number(v) * 100)}%`;
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, emphasis = false, subtotal = false }: { label: string; value: string; emphasis?: boolean; subtotal?: boolean }) {
   return (
-    <div className="flex items-center justify-between">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="font-semibold text-slate-800">{value}</dd>
+    <div className={`flex items-baseline justify-between gap-4 ${subtotal ? "mt-2 border-t border-[#E7DFCF] pt-3" : ""}`}>
+      <dt className="font-semibold text-[#0B1F3A]">{label}</dt>
+      <dd className={`text-right tabular-nums ${emphasis ? "text-lg font-semibold text-[#0B1F3A]" : subtotal ? "font-semibold text-slate-700" : "font-normal text-slate-700"}`}>{value}</dd>
     </div>
+  );
+}
+
+function MoneyRow({ label, value, emphasis = false, subtotal = false }: { label: string; value: string; emphasis?: boolean; subtotal?: boolean }) {
+  return (
+    <div className={`flex items-baseline justify-between gap-4 ${subtotal ? "border-t border-[#E7DFCF] pt-3" : ""}`}>
+      <dt className="font-semibold text-[#0B1F3A]">{label}</dt>
+      <dd className={`text-right tabular-nums ${emphasis ? "font-semibold text-[#0B1F3A]" : subtotal ? "font-semibold text-slate-700" : "font-normal text-slate-700"}`}>{value}</dd>
+    </div>
+  );
+}
+
+function InvoiceStatusPill({ status }: { status: string }) {
+  const labels: Record<string, string> = {
+    uploaded: "Uploaded",
+    accepted: "Accepted",
+    funded: "Funded",
+    partially_paid: "Partially paid",
+    paid: "Paid",
+    defaulted: "Defaulted",
+    rejected: "Rejected",
+  };
+  const backgrounds: Record<string, string> = {
+    paid: "bg-[var(--invoice-risk-low-bg)]",
+    accepted: "bg-[#F1EBDD]",
+    funded: "bg-[#F7F1DF]",
+    partially_paid: "bg-[#F8EEE6]",
+    defaulted: "bg-[#F4F1EB]",
+    rejected: "bg-[#F4F1EB]",
+    uploaded: "bg-slate-100",
+  };
+  return (
+    <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold text-slate-700 ${backgrounds[status] ?? "bg-slate-100"}`}>
+      {labels[status] ?? status.replaceAll("_", " ")}
+    </span>
   );
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { buyers, invoices, statusEvents } from "@/db/schema";
 import { and, desc, eq, gte, lt, notInArray, sql } from "drizzle-orm";
-import { assessRisk } from "@/lib/risk";
+import { assessRisk, getFundingChance } from "@/lib/risk";
 import { calculateInvoiceMoney } from "@/lib/pricing";
 import { createAndSendInvoice } from "@/lib/paypal";
 import { getOrCreatePoolState } from "@/lib/pool";
@@ -50,7 +50,10 @@ export async function GET() {
       .leftJoin(buyers, eq(invoices.buyerId, buyers.id))
       .orderBy(desc(invoices.createdAt));
 
-    return NextResponse.json({ invoices: rows });
+    const roleInvoices = g.role === "sme"
+      ? rows.map((row) => ({ ...row, riskScore: null, riskLabel: null, fundingChance: getFundingChance(row.riskLabel) }))
+      : rows;
+    return NextResponse.json({ invoices: roleInvoices });
   } catch (error) {
     return NextResponse.json(
       {
@@ -306,7 +309,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     invoice: safeInvoice,
     buyerToken: buyerToken?.token ?? null,
-    risk,
+    fundingChance: getFundingChance(risk.label),
     pricing: estimatedMoney,
     paypal: paypalResult,
   }, { status: 201 });
