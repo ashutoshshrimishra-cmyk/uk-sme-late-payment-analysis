@@ -6,6 +6,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test:pricing": "node scripts/assert-deck-terms.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -20,6 +20,7 @@ type InvoiceRow = {
   advanceAmount: string | null;
   feeAmount: string | null;
   fundedAt: string | null;
+  confirmedAt: string | null;
   amountPaid: string;
   paypalMode: string;
   createdAt: string;
@@ -363,6 +364,7 @@ export default function DashboardPage() {
                     <th className="px-4 py-3 font-semibold">Buyer</th>
                     <th className="px-4 py-3 font-semibold">Amount</th>
                     <th className="px-4 py-3 font-semibold">Funding chances</th>
+                    <th className="px-4 py-3 font-semibold">Terms</th>
                     <th className="px-4 py-3 font-semibold">You receive now / Total cost</th>
                     <th className="px-4 py-3 font-semibold">Status</th>
                     <th className="px-4 py-3 font-semibold">Buyer link</th>
@@ -371,12 +373,12 @@ export default function DashboardPage() {
                 <tbody className="divide-y divide-slate-100">
                   {loading && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-6 text-center text-slate-400">Loading invoices…</td>
+                      <td colSpan={8} className="px-4 py-6 text-center text-slate-400">Loading invoices…</td>
                     </tr>
                   )}
                   {!loading && invoices.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center">
+                      <td colSpan={8} className="px-4 py-8 text-center">
                         <div className="flex flex-col items-center gap-2 text-sm text-slate-600">
                           <span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-full bg-[#C9A227]/15 text-lg font-semibold text-[#C9A227]">+</span>
                           <span>No invoices yet. Your first invoice will appear here.</span>
@@ -408,6 +410,9 @@ export default function DashboardPage() {
                       <td className="px-4 py-3 text-slate-700">{inv.buyerName ?? "-"}</td>
                       <td className="px-4 py-3 text-slate-700">{money(inv.amount, inv.currency)}</td>
                       <td className="px-4 py-3 text-slate-700">{inv.fundingChance}</td>
+                      <td className="px-4 py-3 font-medium text-slate-700">
+                        {inv.confirmedAt ? "Confirmed terms: 90% advance" : "Standard terms: 80% advance"}
+                      </td>
                       <td className="px-4 py-3 text-slate-700">
                         You receive now {money(moneyBreakdown.advanceAmount, inv.currency)}
                         <div className="text-xs text-slate-500">You receive when the buyer pays {money(moneyBreakdown.supplierFinalPayment, inv.currency)}</div>

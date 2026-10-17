@@ -114,26 +114,29 @@ export function assessRisk(params: {
   score = Math.max(1, Math.min(99, Math.round(score)));
 
   let label: RiskAssessment["label"];
-  let feePct: number;
   let decision: RiskAssessment["decision"] = "approved";
 
   if (score >= 75) {
     label = "Low risk";
-    feePct = 0.03;
   } else if (score >= 55) {
     label = "Medium risk";
-    feePct = 0.035;
   } else if (score >= 35) {
     label = "High risk";
-    feePct = 0.045;
   } else {
     label = "Very high risk";
-    feePct = 0.06;
     decision = score < 20 ? "declined" : "approved";
   }
 
   // Loss rate scales inversely with score: ~1% at score 100, ~4% at score near 0.
   const lossRateAnnual = Math.max(0.01, Math.min(0.045, 0.01 + ((100 - score) / 100) * 0.035));
 
-  return { score, label, factors, advancePct: UNCONFIRMED_ADVANCE_RATE, feePct, lossRateAnnual, decision };
+  return {
+    score,
+    label,
+    factors,
+    advancePct: UNCONFIRMED_ADVANCE_RATE,
+    feePct: 0.005,
+    lossRateAnnual,
+    decision,
+  };
 }

@@ -3,11 +3,9 @@ import { db } from "@/db";
 import { invoices, statusEvents } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { createPayout, isPaypalConfigured } from "@/lib/paypal";
-import { applyAdvance } from "@/lib/pool";
 import { requireRole } from "@/lib/guard";
 import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoice-state";
-import { getAdvanceRate } from "@/lib/risk";
-import { calculateInvoiceMoney } from "@/lib/pricing";
+import { computeDeckTerms } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -20,19 +18,26 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
 
   const [invoice] = await db.select().from(invoices).where(eq(invoices.id, invoiceId));
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+  if (invoice.approvedAt === null) {
+    return NextResponse.json({ error: "Advance requires financier approval" }, { status: 409 });
+  }
   if (invoice.status !== "accepted" && invoice.status !== "uploaded") {
     return NextResponse.json({ error: "Invoice is not fundable or is already being funded" }, { status: 409 });
   }
   const previousStatus = invoice.status;
-  const advancePct = getAdvanceRate(invoice.status === "accepted" || invoice.confirmedAt !== null);
+  const buyerConfirmed = invoice.confirmedAt !== null;
   const fundingDate = new Date();
-  const money = calculateInvoiceMoney({
+  const daysToDue = Math.max(1, Math.round(
+    (invoice.dueDate.getTime() - fundingDate.getTime()) / 86400000,
+  ));
+  const terms = computeDeckTerms({
     amount: Number(invoice.amount),
-    advancePct,
-    fundingDate,
-    dueDate: invoice.dueDate,
+    daysToDue,
+    buyerConfirmed,
   });
-  const advanceAmount = money.advanceAmount;
+  const advancePct = terms.advancePct;
+  const advanceAmount = terms.advanceAmount;
+  const totalCost = terms.financierInterest + terms.paypalFee + terms.platformFee;
 
   let updated;
   try {
@@ -44,6 +49,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
         fundedAt: fundingDate,
         advancePct: advancePct.toFixed(4),
         advanceAmount: advanceAmount.toFixed(2),
+        financierRatePa: terms.financierRatePa.toFixed(4),
+        financierInterest: terms.financierInterest.toFixed(2),
+        paypalFee: terms.paypalFee.toFixed(2),
+        platformFee: terms.platformFee.toFixed(2),
+        feeAmount: totalCost.toFixed(2),
       },
     });
   } catch (error) {
@@ -87,22 +97,16 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     return rollbackPayoutFailure("PayPal payout failed");
   }
 
-  await applyAdvance({
-    invoiceId: invoice.id,
-    advanceAmount,
-    note: `Advance of ${invoice.currency} ${advanceAmount.toFixed(2)} paid to ${invoice.smeName} via PayPal Payouts (${payout.mode})`,
-  });
-
   const [fundedInvoice] = await db
     .update(invoices)
-    .set({ paypalPayoutBatchId: payout.payoutBatchId, feeAmount: money.totalCost.toFixed(2) })
+    .set({ paypalPayoutBatchId: payout.payoutBatchId })
     .where(eq(invoices.id, invoiceId))
     .returning();
 
   await db.insert(statusEvents).values({
     invoiceId,
     status: "funded",
-    note: `Pool advanced ${invoice.currency} ${advanceAmount.toFixed(2)} (${(advancePct * 100).toFixed(0)}% of invoice) via PayPal Payouts, ${payout.mode} batch ${payout.payoutBatchId}.`,
+    note: `Licensed financier advanced ${invoice.currency} ${advanceAmount.toFixed(2)} (${(advancePct * 100).toFixed(0)}% of invoice) via PayPal Payouts, ${payout.mode} batch ${payout.payoutBatchId}.`,
   });
 
   const {

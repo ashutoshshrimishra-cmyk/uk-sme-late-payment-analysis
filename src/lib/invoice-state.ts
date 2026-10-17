@@ -17,6 +17,11 @@ type TransitionValues = Partial<Pick<
   typeof invoices.$inferInsert,
   | "advancePct"
   | "advanceAmount"
+  | "financierRatePa"
+  | "financierInterest"
+  | "paypalFee"
+  | "platformFee"
+  | "feeAmount"
   | "amountPaid"
   | "paidAt"
   | "fundedAt"

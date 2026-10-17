@@ -4,8 +4,7 @@ import { db } from "@/db";
 import { invoices, statusEvents } from "@/db/schema";
 import { hashBuyerToken, isBuyerTokenFormat } from "@/lib/buyer-token";
 import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoice-state";
-import { CONFIRMED_ADVANCE_RATE } from "@/lib/risk";
-import { calculateInvoiceMoney } from "@/lib/pricing";
+import { computeDeckTerms } from "@/lib/pricing";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -69,12 +68,15 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const money = calculateInvoiceMoney({
+  const daysToDue = Math.max(1, Math.round(
+    (invoice.dueDate.getTime() - now.getTime()) / 86400000,
+  ));
+  const terms = computeDeckTerms({
     amount: Number(invoice.amount),
-    advancePct: CONFIRMED_ADVANCE_RATE,
-    fundingDate: now,
-    dueDate: invoice.dueDate,
+    daysToDue,
+    buyerConfirmed: true,
   });
+  const totalCost = terms.financierInterest + terms.paypalFee + terms.platformFee;
 
   let accepted;
   try {
@@ -83,8 +85,13 @@ export async function POST(request: Request, context: RouteContext) {
       expectedStatus: "uploaded",
       nextStatus: "accepted",
       values: {
-        advancePct: CONFIRMED_ADVANCE_RATE.toFixed(4),
-        advanceAmount: money.advanceAmount.toFixed(2),
+        advancePct: terms.advancePct.toFixed(4),
+        advanceAmount: terms.advanceAmount.toFixed(2),
+        financierRatePa: terms.financierRatePa.toFixed(4),
+        financierInterest: terms.financierInterest.toFixed(2),
+        paypalFee: terms.paypalFee.toFixed(2),
+        platformFee: terms.platformFee.toFixed(2),
+        feeAmount: totalCost.toFixed(2),
         confirmedAt: now,
         deliveryProofNote: proof,
         buyerAcceptanceTokenHash: null,
@@ -104,7 +111,7 @@ export async function POST(request: Request, context: RouteContext) {
   await db.insert(statusEvents).values({
     invoiceId: accepted.id,
     status: "accepted",
-    note: `Buyer accepted the invoice. ${timelineNote}`,
+    note: `Buyer accepted the invoice. Confirmed terms: ${(terms.advancePct * 100).toFixed(0)}% advance at ${(terms.financierRatePa * 100).toFixed(0)}% annual rate. ${timelineNote}`,
   });
 
   return NextResponse.json({ ok: true });

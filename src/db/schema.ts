@@ -48,6 +48,10 @@ export const invoices = pgTable("invoices", {
   feePct: numeric("fee_pct", { precision: 5, scale: 4 }),
   advanceAmount: numeric("advance_amount", { precision: 12, scale: 2 }),
   feeAmount: numeric("fee_amount", { precision: 12, scale: 2 }),
+  financierRatePa: numeric("financier_rate_pa", { precision: 5, scale: 4 }),
+  financierInterest: numeric("financier_interest", { precision: 12, scale: 2 }),
+  paypalFee: numeric("paypal_fee", { precision: 12, scale: 2 }),
+  platformFee: numeric("platform_fee", { precision: 12, scale: 2 }),
   amountPaid: numeric("amount_paid", { precision: 12, scale: 2 }).notNull().default("0"),
 
   paypalInvoiceId: text("paypal_invoice_id"),
@@ -58,6 +62,8 @@ export const invoices = pgTable("invoices", {
   deliveryProofNote: text("delivery_proof_note"),
 
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  approvedBy: text("approved_by"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
   fundedAt: timestamp("funded_at", { withTimezone: true }),
   paidAt: timestamp("paid_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

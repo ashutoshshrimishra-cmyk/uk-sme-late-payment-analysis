@@ -35,6 +35,8 @@ type Invoice = {
   paypalMode: string;
   deliveryProofNote: string | null;
   confirmedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
   fundedAt: string | null;
   paidAt: string | null;
   createdAt: string;
@@ -262,6 +264,12 @@ export default function InvoiceDetail({
               <>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <span className="text-5xl font-semibold tabular-nums leading-none text-[#0B1F3A]">{invoice.riskScore}</span>
+                  <span
+                    title="In production this score uses Companies House, credit-bureau and payment-history data."
+                    className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900"
+                  >
+                    Simulated data (prototype)
+                  </span>
                   <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${riskBandStyles[invoice.riskLabel ?? ""] ?? "border-slate-200 bg-slate-50 text-slate-700"}`}>
                     {invoice.riskLabel ?? "Unrated"}
                   </span>
@@ -367,6 +375,9 @@ export default function InvoiceDetail({
         <div className="space-y-5">
           <div className="rounded-2xl border border-[#E7DFCF] bg-white p-6 shadow-sm">
             <h2 className="font-royal text-lg font-semibold text-[#0B1F3A]">Pricing</h2>
+            <p className="mt-1 text-sm font-semibold text-slate-700">
+              {invoice.confirmedAt ? "Confirmed terms: 90% advance" : "Standard terms: 80% advance"}
+            </p>
             <dl className="mt-3 space-y-1.5 text-sm">
               <Row label="You receive now" value={money(moneyBreakdown.advanceAmount, currency)} emphasis />
               <Row label="Interest" value={money(moneyBreakdown.interestAmount, currency)} />
@@ -386,7 +397,16 @@ export default function InvoiceDetail({
                   <p className="text-[13px] leading-[1.5] text-slate-600">
                     You receive {money(moneyBreakdown.advanceAmount, currency)} now through the configured payout connection.
                   </p>
-                  <button disabled={busy} onClick={() => act("fund")} className="w-full rounded-xl bg-[#0B1F3A] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#C9A227] hover:text-[#0B1F3A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227] disabled:opacity-50">
+                  {!invoice.approvedAt ? (
+                    <button disabled={busy} onClick={() => act("approve")} className="w-full rounded-xl border border-[#C9A227] bg-white px-4 py-2.5 text-sm font-semibold text-[#0B1F3A] hover:bg-[#FAF7F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227] disabled:opacity-50">
+                      Approve advance
+                    </button>
+                  ) : (
+                    <p className="text-sm font-semibold text-emerald-700">
+                      Advance approved by {invoice.approvedBy ?? "Financier"}
+                    </p>
+                  )}
+                  <button disabled={busy || !invoice.approvedAt} onClick={() => act("fund")} className="w-full rounded-xl bg-[#0B1F3A] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#C9A227] hover:text-[#0B1F3A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A227] disabled:opacity-50">
                     Fund from pool
                   </button>
                 </div>

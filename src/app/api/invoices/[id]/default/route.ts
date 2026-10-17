@@ -2,14 +2,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { invoices, statusEvents } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { applyDefault } from "@/lib/pool";
 import { requireRole } from "@/lib/guard";
 import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoice-state";
 
 export const dynamic = "force-dynamic";
 
-// Demo-only: lets the pitch demo show the default-loss waterfall
-// (Slide 5: recourse to SME -> first-loss reserve -> senior investor last).
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const g = await requireRole("financer");
   if (!g.ok) return g.res;
@@ -39,13 +36,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     throw error;
   }
 
-  const advanceAmount = Number(invoice.advanceAmount);
-  const result = await applyDefault({ invoiceId: invoice.id, advanceAmount });
-
   await db.insert(statusEvents).values({
     invoiceId,
     status: "defaulted",
-    note: `Default recorded: ${reason}. Recourse to SME first (not recorded as cash); first-loss reserve absorbed £${result.fromReserve.toFixed(2)}; investor pool capital absorbed £${result.fromPool.toFixed(2)}.`,
+    note: `Default recorded: ${reason}. Buyer-default loss is borne by the financier without recourse. Fraud or disputed-invoice losses may be recovered from the supplier.`,
   });
 
   const {
@@ -53,5 +47,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     buyerAcceptanceTokenExpiresAt: _buyerAcceptanceTokenExpiresAt,
     ...safeInvoice
   } = updated;
-  return NextResponse.json({ invoice: safeInvoice, waterfall: result });
+  return NextResponse.json({ invoice: safeInvoice });
 }

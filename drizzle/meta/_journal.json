@@ -22,6 +22,20 @@
       "when": 1792151257739,
       "tag": "0002_hashed_buyer_acceptance_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792258843373,
+      "tag": "0003_deck_financier_terms",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792259766219,
+      "tag": "0004_glamorous_manta",
+      "breakpoints": true
     }
   ]
 }

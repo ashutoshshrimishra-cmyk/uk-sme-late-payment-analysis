@@ -3,8 +3,7 @@ import { db } from "@/db";
 import { buyers, invoices, statusEvents } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { recordExternalPayment } from "@/lib/paypal";
-import { calculateInvoiceMoney, computeRepaymentWaterfall } from "@/lib/pricing";
-import { applyRepaymentWaterfall } from "@/lib/pool";
+import { computeDeckTerms, round2 } from "@/lib/pricing";
 import { daysBetween } from "@/lib/format";
 import { requireRole } from "@/lib/guard";
 import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoice-state";
@@ -63,35 +62,32 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     note: `Payment recorded for invoice ${invoice.invoiceNumber}`,
   });
 
-  const money = calculateInvoiceMoney({
+  const fundingDate = invoice.fundedAt ?? invoice.createdAt;
+  const daysToDue = Math.max(1, Math.round(
+    (invoice.dueDate.getTime() - fundingDate.getTime()) / 86400000,
+  ));
+  const calculatedTerms = computeDeckTerms({
     amount: amountDue,
-    advancePct: Number(invoice.advancePct ?? 0.8),
-    fundingDate: invoice.fundedAt ?? invoice.createdAt,
-    dueDate: invoice.dueDate,
-    amountPaid,
-    storedAdvanceAmount: Number(invoice.advanceAmount),
-    storedTotalCost: Number(invoice.feeAmount ?? 0),
+    daysToDue,
+    buyerConfirmed: invoice.confirmedAt !== null,
   });
+  const advanceAmount = round2(Number(invoice.advanceAmount ?? calculatedTerms.advanceAmount));
+  const financierInterest = round2(Number(invoice.financierInterest ?? calculatedTerms.financierInterest));
+  const paypalFee = round2(Number(invoice.paypalFee ?? calculatedTerms.paypalFee));
+  const platformFee = round2(Number(invoice.platformFee ?? calculatedTerms.platformFee));
+  const returnedToSupplier = round2(
+    amountDue - advanceAmount - financierInterest - paypalFee - platformFee,
+  );
 
   const [buyer] = await db.select().from(buyers).where(eq(buyers.id, invoice.buyerId));
 
-  const waterfall = computeRepaymentWaterfall({
-    advanceAmount: Number(invoice.advanceAmount),
-    interestAmount: money.interestAmount,
-    paypalFeeAmount: money.paypalFeeAmount,
-    platformFeeAmount: money.platformFeeAmount,
-    supplierSettlementPayment: money.supplierSettlementPayment,
-  });
-
-  await applyRepaymentWaterfall({
-    invoiceId: invoice.id,
-    advanceAmount: waterfall.investorPrincipal,
-    investorReturn: waterfall.investorReturn,
-    expectedLossReserve: waterfall.expectedLossReserve,
-    platformCost: waterfall.platformCost,
-    platformMargin: waterfall.platformMargin,
-    balanceToSme: waterfall.balanceToSme,
-  });
+  const waterfall = {
+    advanceAmount,
+    financierInterest,
+    paypalFee,
+    platformFee,
+    returnedToSupplier,
+  };
 
   const newStatus = updated.status;
 
@@ -104,13 +100,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const daysLate = Math.max(0, daysBetween(invoice.dueDate, paymentDate));
   const lateNote = daysLate > 0
-    ? ` Buyer paid ${daysLate} day(s) late; extra interest is not modelled.`
+    ? ` Buyer paid ${daysLate} day(s) late; no additional late accrual is charged by the platform.`
     : " Buyer paid on or before the due date.";
 
   await db.insert(statusEvents).values({
     invoiceId,
     status: newStatus,
-    note: `${method === "BANK_TRANSFER" ? "Bank transfer" : "PayPal"} payment of ${invoice.currency} ${amountPaid.toFixed(2)} recorded on the invoice (${paymentResult.mode}).${lateNote} Allocation: interest £${waterfall.investorReturn.toFixed(2)} to investor, PayPal fee £${waterfall.platformCost.toFixed(2)}, platform fee £${waterfall.platformMargin.toFixed(2)}, supplier payment £${waterfall.balanceToSme.toFixed(2)}.`,
+    note: `${method === "BANK_TRANSFER" ? "Bank transfer" : "PayPal"} payment of ${invoice.currency} ${amountPaid.toFixed(2)} recorded on the invoice (${paymentResult.mode}).${lateNote} Contract terms: financier interest £${financierInterest.toFixed(2)}, PayPal fee £${paypalFee.toFixed(2)}, flat platform fee £${platformFee.toFixed(2)}, supplier return at full settlement £${returnedToSupplier.toFixed(2)}.`,
   });
 
   const {

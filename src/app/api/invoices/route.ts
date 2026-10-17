@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { buyers, invoices, statusEvents } from "@/db/schema";
-import { and, desc, eq, gte, lt, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { assessRisk, getFundingChance } from "@/lib/risk";
 import { calculateInvoiceMoney } from "@/lib/pricing";
 import { createAndSendInvoice } from "@/lib/paypal";
-import { getOrCreatePoolState } from "@/lib/pool";
 import { askGemini, assessBuyerRisk } from "@/lib/gemini";
 import {
   calculateBuyerCreditScore,
@@ -42,6 +41,7 @@ export async function GET() {
         amountPaid: invoices.amountPaid,
         paypalMode: invoices.paypalMode,
         fundedAt: invoices.fundedAt,
+        confirmedAt: invoices.confirmedAt,
         createdAt: invoices.createdAt,
         buyerName: buyers.name,
         buyerCompany: buyers.company,
@@ -127,13 +127,12 @@ export async function POST(request: Request) {
       eq(invoices.amount, amountNum.toFixed(2)),
       gte(invoices.dueDate, dueDayStart),
       lt(invoices.dueDate, dueDayEnd),
-      notInArray(invoices.status, ["rejected", "defaulted"]),
     ))
     .limit(1);
 
   if (duplicate) {
     return NextResponse.json(
-      { error: `This looks like a duplicate of ${duplicate.invoiceNumber}. If it is a different invoice, change the amount or due date.` },
+      { error: `An invoice already exists for this buyer with the same amount and due date (${duplicate.invoiceNumber}). Check existing invoices before submitting.` },
       { status: 409 },
     );
   }
@@ -151,6 +150,7 @@ export async function POST(request: Request) {
       companyNumber: formCompanyNumber || undefined,
     });
   }
+  // Buyer credit score and payment history are simulated in this prototype.
   const ruleScore = calculateBuyerCreditScore(buyerData);
   const latePaymentRate = SIMULATED_BUYER_LATE_PAYMENT_RATE.toFixed(4);
   const buyerRisk = await assessBuyerRisk({
@@ -189,15 +189,6 @@ export async function POST(request: Request) {
       .returning();
   }
 
-  const pool = await getOrCreatePoolState();
-  const buyerExposure = await db
-    .select({ advanceAmount: invoices.advanceAmount })
-    .from(invoices)
-    .where(eq(invoices.buyerId, buyer.id));
-  const deployedToBuyer = buyerExposure.reduce((sum, r) => sum + (r.advanceAmount ? Number(r.advanceAmount) : 0), 0);
-  const totalDeployed = Number(pool.totalDeployed) || 1;
-  const concentration = totalDeployed > 0 ? deployedToBuyer / Math.max(totalDeployed, deployedToBuyer || 1) : 0;
-
   const daysToDue = Math.max(1, Math.round((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 
   const risk = assessRisk({
@@ -208,7 +199,6 @@ export async function POST(request: Request) {
     },
     amount: amountNum,
     daysToDue,
-    buyerConcentrationShare: concentration,
   });
 
   const estimatedMoney = calculateInvoiceMoney({
