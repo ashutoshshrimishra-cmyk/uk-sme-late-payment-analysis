@@ -12,6 +12,13 @@ export type RiskFactor = {
   detail: string;
 };
 
+export const UNCONFIRMED_ADVANCE_RATE = 0.8;
+export const CONFIRMED_ADVANCE_RATE = 0.9;
+
+export function getAdvanceRate(buyerConfirmed: boolean): number {
+  return buyerConfirmed ? CONFIRMED_ADVANCE_RATE : UNCONFIRMED_ADVANCE_RATE;
+}
+
 export type RiskAssessment = {
   score: number;
   label: "Low risk" | "Medium risk" | "High risk" | "Very high risk";
@@ -95,25 +102,20 @@ export function assessRisk(params: {
   score = Math.max(1, Math.min(99, Math.round(score)));
 
   let label: RiskAssessment["label"];
-  let advancePct: number;
   let feePct: number;
   let decision: RiskAssessment["decision"] = "approved";
 
   if (score >= 75) {
     label = "Low risk";
-    advancePct = 0.85;
     feePct = 0.03;
   } else if (score >= 55) {
     label = "Medium risk";
-    advancePct = 0.8;
     feePct = 0.035;
   } else if (score >= 35) {
     label = "High risk";
-    advancePct = 0.7;
     feePct = 0.045;
   } else {
     label = "Very high risk";
-    advancePct = 0.5;
     feePct = 0.06;
     decision = score < 20 ? "declined" : "approved";
   }
@@ -121,5 +123,5 @@ export function assessRisk(params: {
   // Loss rate scales inversely with score: ~1% at score 100, ~4% at score near 0.
   const lossRateAnnual = Math.max(0.01, Math.min(0.045, 0.01 + ((100 - score) / 100) * 0.035));
 
-  return { score, label, factors, advancePct, feePct, lossRateAnnual, decision };
+  return { score, label, factors, advancePct: UNCONFIRMED_ADVANCE_RATE, feePct, lossRateAnnual, decision };
 }

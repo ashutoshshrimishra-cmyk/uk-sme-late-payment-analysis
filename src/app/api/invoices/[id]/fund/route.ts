@@ -6,6 +6,8 @@ import { createPayout, isPaypalConfigured } from "@/lib/paypal";
 import { applyAdvance } from "@/lib/pool";
 import { requireRole } from "@/lib/guard";
 import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoice-state";
+import { getAdvanceRate } from "@/lib/risk";
+import { round2 } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -18,18 +20,24 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
 
   const [invoice] = await db.select().from(invoices).where(eq(invoices.id, invoiceId));
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
-  if (invoice.status !== "accepted") {
+  if (invoice.status !== "accepted" && invoice.status !== "uploaded") {
     return NextResponse.json({ error: "Invoice is not fundable or is already being funded" }, { status: 409 });
   }
   const previousStatus = invoice.status;
+  const advancePct = getAdvanceRate(invoice.status === "accepted" || invoice.confirmedAt !== null);
+  const advanceAmount = round2(Number(invoice.amount) * advancePct);
 
   let updated;
   try {
     updated = await transitionInvoiceStatus({
       invoiceId,
-      expectedStatus: "accepted",
+      expectedStatus: previousStatus,
       nextStatus: "funded",
-      values: { fundedAt: new Date() },
+      values: {
+        fundedAt: new Date(),
+        advancePct: advancePct.toFixed(4),
+        advanceAmount: advanceAmount.toFixed(2),
+      },
     });
   } catch (error) {
     if (error instanceof InvoiceStateConflictError) {
@@ -38,7 +46,6 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     throw error;
   }
 
-  const advanceAmount = Number(invoice.advanceAmount);
   const configured = isPaypalConfigured();
   const rollbackPayoutFailure = async (reason: string) => {
     await db
@@ -88,7 +95,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   await db.insert(statusEvents).values({
     invoiceId,
     status: "funded",
-    note: `Pool advanced ${invoice.currency} ${advanceAmount.toFixed(2)} (${(Number(invoice.advancePct) * 100).toFixed(0)}% of invoice) via PayPal Payouts, ${payout.mode} batch ${payout.payoutBatchId}.`,
+    note: `Pool advanced ${invoice.currency} ${advanceAmount.toFixed(2)} (${(advancePct * 100).toFixed(0)}% of invoice) via PayPal Payouts, ${payout.mode} batch ${payout.payoutBatchId}.`,
   });
 
   const {

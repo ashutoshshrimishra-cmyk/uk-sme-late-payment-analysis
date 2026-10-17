@@ -88,7 +88,7 @@ export default function FinancerQueuePage() {
     void run();
   }, [loadInvoices]);
 
-  const needsAction = invoices.filter((invoice) => invoice.status === "accepted");
+  const needsAction = invoices.filter((invoice) => invoice.status === "accepted" || invoice.status === "uploaded");
   const filteredInvoices = filter === "all" ? invoices : invoices.filter((invoice) => invoice.status === filter);
 
   return (
@@ -109,7 +109,7 @@ export default function FinancerQueuePage() {
 
         <section className="rounded-xl border border-[#C9A227]/30 bg-white p-6 shadow-md">
           <h2 className="font-royal text-xl font-semibold text-[#0B1F3A]">Needs action ({needsAction.length})</h2>
-          <p className="mt-1 text-sm text-slate-500">Accepted invoices are ready for funding review.</p>
+          <p className="mt-1 text-sm text-slate-500">Buyer confirmation is optional; uploaded and accepted invoices are ready for funding review.</p>
           <div className="mt-4">
             <InvoiceTable rows={needsAction} loading={loading} />
           </div>

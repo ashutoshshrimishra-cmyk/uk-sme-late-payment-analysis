@@ -15,6 +15,8 @@ export const INVOICE_STATUSES = [
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 type TransitionValues = Partial<Pick<
   typeof invoices.$inferInsert,
+  | "advancePct"
+  | "advanceAmount"
   | "amountPaid"
   | "paidAt"
   | "fundedAt"
@@ -26,7 +28,7 @@ type TransitionValues = Partial<Pick<
 >>;
 
 const ALLOWED_TRANSITIONS: Record<InvoiceStatus, readonly InvoiceStatus[]> = {
-  uploaded: ["accepted", "rejected"],
+  uploaded: ["accepted", "funded", "rejected"],
   accepted: ["funded", "rejected"],
   funded: ["partially_paid", "paid", "defaulted"],
   partially_paid: ["partially_paid", "paid"],

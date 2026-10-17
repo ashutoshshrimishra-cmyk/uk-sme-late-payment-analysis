@@ -301,10 +301,10 @@ export default function InvoiceDetail({
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="font-semibold text-slate-900">Actions</h2>
 
-              {invoice.status === "accepted" && (
+              {(invoice.status === "accepted" || invoice.status === "uploaded") && (
                 <div className="mt-3 space-y-3">
                   <p className="text-xs text-slate-500">
-                    Advance {money(invoice.advanceAmount, currency)} is queued through the configured payout connection.
+                    Advance {money(invoice.advanceAmount, currency)} is ready through the configured payout connection. Buyer confirmation is optional.
                   </p>
                   <button disabled={busy} onClick={() => act("fund")} className="btn-primary">
                     Fund from pool
