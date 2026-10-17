@@ -6,7 +6,7 @@ import { ROLE_HOME, type Role } from "@/lib/roles";
 
 const ROLE_LABELS: Record<Role, string> = {
   sme: "SME",
-  financer: "Financer",
+  financer: "Financier",
   investor: "Investor",
 };
 

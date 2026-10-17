@@ -29,6 +29,9 @@ export default function HomePage() {
                     <p className="mb-10 max-w-xl select-none text-base font-medium text-white/90 sm:text-lg">
                         Faster cash for SMEs when buyers pay late.
                     </p>
+                    <p className="-mt-8 mb-10 text-xs text-white/75">
+                        Settled via PayPal Invoicing &amp; Payouts.
+                    </p>
 
                     <div className="relative z-30 mb-10 w-full max-w-3xl">
                         <PortalCards />
@@ -157,6 +160,7 @@ export default function HomePage() {
                         <div className="relative mx-auto h-3 w-full rounded-b-2xl bg-gray-800 shadow-xl">
                             <div className="absolute left-1/2 top-0 h-1 w-20 -translate-x-1/2 rounded-b bg-gray-600" />
                         </div>
+                        <p className="mt-2 text-center text-xs text-white/75">Illustrative preview (sample data)</p>
                     </div>
                 </section>
 
@@ -165,7 +169,7 @@ export default function HomePage() {
                         <section className="space-y-5">
                             <h2 className="font-display text-lg font-semibold tracking-normal text-slate-900 sm:text-xl">Why this matters</h2>
                             <p className="text-sm leading-relaxed text-slate-600">
-                                Don&apos;t wait 90 days to be paid. Unlock cash from unpaid invoices, with no lock-ins or minimum fees.
+                                Don&apos;t wait 90 days to be paid. Unlock cash from unpaid invoices. Transparent pricing: see your exact cost before you accept.
                             </p>
                         </section>
 
@@ -176,9 +180,10 @@ export default function HomePage() {
                             <ol className="space-y-3">
                                 {[
                                     "Upload an invoice",
-                                    "Get an AI risk score",
-                                    "Buyer confirms acceptance",
-                                    "Receive funds from the pool",
+                                    "Get an AI-assisted buyer risk score",
+                                    "Buyer confirms (optional, better terms)",
+                                    "Financier approves the advance",
+                                    "Receive funds via PayPal",
                                     "Track repayment",
                                 ].map((step, index) => (
                                     <li key={step} className="flex items-start gap-3">
