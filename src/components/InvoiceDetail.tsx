@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   calculateInvoiceMoney,
+  CONFIRMED_FINANCIER_INTEREST_APR,
   FINANCIER_INTEREST_APR,
   round2,
 } from "@/lib/pricing";
@@ -490,12 +491,15 @@ function FinancerWorkspace({
   const [noteSaved, setNoteSaved] = useState(true);
 
   useEffect(() => {
-    try {
-      setNote(window.localStorage.getItem(noteKey) ?? "");
-    } catch {
-      setNote("");
-    }
-    setNoteLoadedFor(noteKey);
+    const timer = window.setTimeout(() => {
+      try {
+        setNote(window.localStorage.getItem(noteKey) ?? "");
+      } catch {
+        setNote("");
+      }
+      setNoteLoadedFor(noteKey);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [noteKey]);
 
   useEffect(() => {
@@ -596,7 +600,7 @@ function FinancerWorkspace({
                   Financier APR
                   <input
                     readOnly
-                    value={`${(FINANCIER_INTEREST_APR * 100).toFixed(1)}%`}
+                    value={`${((invoice.confirmedAt ? CONFIRMED_FINANCIER_INTEREST_APR : FINANCIER_INTEREST_APR) * 100).toFixed(1)}%`}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 tabular-nums text-slate-600"
                   />
                 </label>

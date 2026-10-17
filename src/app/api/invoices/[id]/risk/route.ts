@@ -6,8 +6,7 @@ import { requireRole } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
-// Human override of the AI risk score - part of the "explainable score,
-// human override, decision log" control in Slide 5.
+// Allows a financer to update the risk score before buyer confirmation.
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const g = await requireRole("financer");
   if (!g.ok) return g.res;

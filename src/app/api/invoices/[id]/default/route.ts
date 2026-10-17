@@ -7,6 +7,7 @@ import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoic
 
 export const dynamic = "force-dynamic";
 
+// Records a buyer default for a funded invoice and adds it to the event history.
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const g = await requireRole("financer");
   if (!g.ok) return g.res;

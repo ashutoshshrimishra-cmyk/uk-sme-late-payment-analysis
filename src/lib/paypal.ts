@@ -1,14 +1,4 @@
-// Thin PayPal REST client used by the demo.
-//
-// Scope (see pitch deck Appendix A2):
-//  - Verified by this project: create/send invoice, record an external
-//    payment, partial-paid status.
-//  - Documented but not independently verified here: Payouts, GBP/UK
-//    recipient support, webhooks.
-//
-// If PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET are not configured, the client
-// returns simulated responses so invoice statuses, the waterfall and pool
-// ledger remain usable without external PayPal access.
+// Handles PayPal invoicing, external payments, and payouts with sandbox or simulated fallbacks.
 
 const PAYPAL_BASE =
   process.env.PAYPAL_MODE === "live"

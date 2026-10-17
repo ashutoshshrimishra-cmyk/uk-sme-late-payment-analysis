@@ -1,10 +1,4 @@
-// Explainable, heuristic AI risk score.
-// This is a PROPOSED / demo scoring model, not trained on real default data
-// (see pitch deck, Slide 4: "AI default prediction: Proposed, no real default data").
-//
-// Score runs 0-100 (higher = lower risk). Every contributing factor is
-// returned alongside its point impact so the UI can show a human-readable
-// explanation and an ops user can override the result (Slide 5: "human override").
+// Prototype score: Companies House data where available, simulated credit-bureau/payment-history inputs, optional Gemini adjustment.
 
 export type RiskFactor = {
   name: string;
@@ -14,10 +8,6 @@ export type RiskFactor = {
 
 export const UNCONFIRMED_ADVANCE_RATE = 0.8;
 export const CONFIRMED_ADVANCE_RATE = 0.9;
-
-export function getAdvanceRate(buyerConfirmed: boolean): number {
-  return buyerConfirmed ? CONFIRMED_ADVANCE_RATE : UNCONFIRMED_ADVANCE_RATE;
-}
 
 export type RiskAssessment = {
   score: number;

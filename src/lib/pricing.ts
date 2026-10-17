@@ -1,3 +1,5 @@
+// Calculates advance terms, financing costs, and supplier settlement amounts.
+export const CONFIRMED_FINANCIER_INTEREST_APR = 0.15;
 export const FINANCIER_INTEREST_APR = 0.18;
 export const PAYPAL_PROCESSING_FEE_RATE = 0.029;
 export const PLATFORM_FEE_RATE = 0.005;
@@ -18,7 +20,9 @@ export function computeDeckTerms(params: {
   buyerConfirmed: boolean;
 }): DeckTerms {
   const advancePct = params.buyerConfirmed ? 0.9 : 0.8;
-  const financierRatePa = params.buyerConfirmed ? 0.15 : 0.18;
+  const financierRatePa = params.buyerConfirmed
+    ? CONFIRMED_FINANCIER_INTEREST_APR
+    : FINANCIER_INTEREST_APR;
   const advanceAmount = round2(params.amount * advancePct);
   const financierInterest = round2(
     advanceAmount * financierRatePa * params.daysToDue / 365,
