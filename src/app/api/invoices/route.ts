@@ -181,7 +181,7 @@ export async function POST(request: Request) {
   } else {
     [buyer] = await db
       .update(buyers)
-      .set({ creditScore: finalCreditScore, latePaymentRate })
+      .set({ name: String(buyerName), creditScore: finalCreditScore, latePaymentRate })
       .where(eq(buyers.id, buyer.id))
       .returning();
   }
