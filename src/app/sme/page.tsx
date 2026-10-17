@@ -30,6 +30,7 @@ const EMPTY_FORM = {
   smeName: "",
   smeEmail: "",
   buyerName: "",
+  buyerCompanyNumber: "",
   buyerEmail: "",
   amount: "",
   dueDate: "",
@@ -295,6 +296,9 @@ export default function DashboardPage() {
               </Field>
               <Field label="Buyer name">
                 <input required value={form.buyerName} onChange={(e) => setForm({ ...form, buyerName: e.target.value })} className="input" placeholder="Buyer name" />
+              </Field>
+              <Field label="Buyer company number (optional)">
+                <input value={form.buyerCompanyNumber} onChange={(e) => setForm({ ...form, buyerCompanyNumber: e.target.value })} className="input" placeholder="Company number" />
               </Field>
               <Field label="Buyer email">
                 <input required type="email" value={form.buyerEmail} onChange={(e) => setForm({ ...form, buyerEmail: e.target.value })} className="input" placeholder="accounts@buyer.co.uk" />

@@ -7,6 +7,11 @@ import { calculateInvoiceMoney } from "@/lib/pricing";
 import { createAndSendInvoice } from "@/lib/paypal";
 import { getOrCreatePoolState } from "@/lib/pool";
 import { askGemini } from "@/lib/gemini";
+import {
+  calculateBuyerCreditScore,
+  lookupBuyer,
+  SIMULATED_BUYER_LATE_PAYMENT_RATE,
+} from "@/lib/companies-house";
 import { requireRole } from "@/lib/guard";
 import { createBuyerToken } from "@/lib/buyer-token";
 
@@ -114,6 +119,13 @@ export async function POST(request: Request) {
   }
 
   // Find or create the buyer.
+  const buyerData = await lookupBuyer({
+    name: String(buyerName),
+    companyNumber: typeof body.buyerCompanyNumber === "string" ? body.buyerCompanyNumber : undefined,
+  });
+  const creditScore = calculateBuyerCreditScore(buyerData);
+  const latePaymentRate = SIMULATED_BUYER_LATE_PAYMENT_RATE.toFixed(4);
+
   let buyer = (await db.select().from(buyers).where(eq(buyers.email, String(buyerEmail))))[0];
   if (!buyer) {
     [buyer] = await db
@@ -121,10 +133,16 @@ export async function POST(request: Request) {
       .values({
         name: String(buyerName),
         email: String(buyerEmail),
-        creditScore: 55 + Math.floor(Math.random() * 35),
-        latePaymentRate: (0.05 + Math.random() * 0.3).toFixed(4),
+        creditScore,
+        latePaymentRate,
         totalInvoicesFinanced: 0,
       })
+      .returning();
+  } else {
+    [buyer] = await db
+      .update(buyers)
+      .set({ creditScore, latePaymentRate })
+      .where(eq(buyers.id, buyer.id))
       .returning();
   }
 
@@ -169,11 +187,19 @@ export async function POST(request: Request) {
     dueDate: due,
   });
 
+  const buyerDataLabel = buyerData.source === "companies_house" && buyerData.found
+    ? "Buyer data: Companies House"
+    : "Buyer data: simulated (no match found)";
+  const buyerFacts = buyerData.signals.length > 0
+    ? buyerData.signals.join("; ")
+    : "No public filing signals were available";
   const aiNote = await askGemini(
-    `You are an invoice-finance risk analyst. In at most 2 short plain-English sentences, explain this decision to a small business owner. Do not use markdown. ` +
-      `At today's rates, the supplier receives GBP ${estimatedMoney.advanceAmount.toFixed(2)} now and GBP ${estimatedMoney.supplierFinalPayment.toFixed(2)} when the buyer pays, with a total cost of GBP ${estimatedMoney.totalCost.toFixed(2)}. ` +
-      `Factors: ${JSON.stringify(risk.factors)}`,
+    `Explain only these four things to a small business owner in plain English, with no markdown: (a) what the SME receives now, (b) what the SME receives when the buyer pays, (c) the total cost, and (d) one short sentence about these buyer facts: ${buyerFacts}. ` +
+      `The SME receives GBP ${estimatedMoney.advanceAmount.toFixed(2)} now, GBP ${estimatedMoney.supplierFinalPayment.toFixed(2)} when the buyer pays, and the total cost is GBP ${estimatedMoney.totalCost.toFixed(2)}. ` +
+      `Do not say buyer risk or late payments changed the advance rate or price. End exactly with: ${buyerDataLabel}`,
   );
+  const explanation = aiNote ??
+    `The SME receives GBP ${estimatedMoney.advanceAmount.toFixed(2)} now and GBP ${estimatedMoney.supplierFinalPayment.toFixed(2)} when the buyer pays; total cost is GBP ${estimatedMoney.totalCost.toFixed(2)}. Buyer facts: ${buyerFacts}. ${buyerDataLabel}`;
 
   const status = risk.decision === "declined" ? "rejected" : "uploaded";
   const buyerToken = status === "uploaded" ? createBuyerToken() : null;
@@ -212,11 +238,14 @@ export async function POST(request: Request) {
       (status === "rejected"
         ? `AI risk score ${risk.score}/100 (${risk.label}): below minimum threshold, funding declined.`
         : `Invoice created and sent via PayPal Invoicing (${paypalResult.mode}). AI risk score ${risk.score}/100 (${risk.label}).`) +
-      (aiNote ? ` AI explanation: ${aiNote}` : "") +
+      ` AI explanation: ${explanation}` +
       (body.documentCheck?.mismatch === true && typeof body.documentCheck.details === "string"
         ? ` Document mismatch: ${body.documentCheck.details}`
         : "") +
-      " Supplier confirmed the invoice is genuine and undisputed.",
+      " Supplier confirmed the invoice is genuine and undisputed." +
+      (buyerData.source === "companies_house" && buyerData.found
+        ? ` Buyer data source: Companies House (${buyerData.companyNumber ?? "number unavailable"}).`
+        : " Buyer data source: simulated."),
   });
 
   const {
