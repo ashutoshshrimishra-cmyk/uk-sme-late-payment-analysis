@@ -5,7 +5,7 @@ import { invoices, statusEvents } from "@/db/schema";
 import { hashBuyerToken, isBuyerTokenFormat } from "@/lib/buyer-token";
 import { InvoiceStateConflictError, transitionInvoiceStatus } from "@/lib/invoice-state";
 import { CONFIRMED_ADVANCE_RATE } from "@/lib/risk";
-import { round2 } from "@/lib/pricing";
+import { calculateInvoiceMoney } from "@/lib/pricing";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -44,7 +44,7 @@ export async function POST(request: Request, context: RouteContext) {
   const tokenHash = hashBuyerToken(token);
   const now = new Date();
   const [invoice] = await db
-    .select({ id: invoices.id, amount: invoices.amount })
+    .select({ id: invoices.id, amount: invoices.amount, dueDate: invoices.dueDate })
     .from(invoices)
     .where(and(
       eq(invoices.buyerAcceptanceTokenHash, tokenHash),
@@ -69,6 +69,13 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
+  const money = calculateInvoiceMoney({
+    amount: Number(invoice.amount),
+    advancePct: CONFIRMED_ADVANCE_RATE,
+    fundingDate: now,
+    dueDate: invoice.dueDate,
+  });
+
   let accepted;
   try {
     accepted = await transitionInvoiceStatus({
@@ -77,7 +84,7 @@ export async function POST(request: Request, context: RouteContext) {
       nextStatus: "accepted",
       values: {
         advancePct: CONFIRMED_ADVANCE_RATE.toFixed(4),
-        advanceAmount: round2(Number(invoice.amount) * CONFIRMED_ADVANCE_RATE).toFixed(2),
+        advanceAmount: money.advanceAmount.toFixed(2),
         confirmedAt: now,
         deliveryProofNote: proof,
         buyerAcceptanceTokenHash: null,

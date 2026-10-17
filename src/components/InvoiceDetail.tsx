@@ -237,7 +237,7 @@ export default function InvoiceDetail({
               <div className="text-4xl font-bold text-slate-900">{invoice.riskScore}</div>
               <div>
                 <div className="font-semibold text-slate-800">{invoice.riskLabel}</div>
-                <div className="text-xs text-slate-500">You receive now {pct(invoice.advancePct)} of the invoice</div>
+                <div className="text-xs text-slate-500">You receive now {(Number(invoice.advanceAmount) / Number(invoice.amount) * 100).toFixed(1)}% of the invoice</div>
               </div>
             </div>
             {invoice.riskOverrideNote && (

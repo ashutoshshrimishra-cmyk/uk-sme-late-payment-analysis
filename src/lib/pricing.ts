@@ -28,11 +28,38 @@ export function calculateInvoiceMoney(terms: InvoiceMoneyTerms): InvoiceMoneyBre
   const fundingTime = new Date(terms.fundingDate).getTime();
   const dueTime = new Date(terms.dueDate).getTime();
   const daysToDue = Math.max(1, Math.round((dueTime - fundingTime) / 86400000));
-  const advanceAmount = terms.storedAdvanceAmount ?? round2(terms.amount * terms.advancePct);
-  // Fixed at due date; extra interest for late payment is not modelled.
-  const interestAmount = round2(advanceAmount * FINANCIER_INTEREST_APR * daysToDue / 365);
+
   const paypalFeeAmount = round2(terms.amount * PAYPAL_PROCESSING_FEE_RATE);
   const platformFeeAmount = PLATFORM_FEE_GBP;
+
+  // Fixed at due date; extra interest for late payment is not modelled.
+  const interestFor = (advance: number) =>
+    round2(advance * FINANCIER_INTEREST_APR * daysToDue / 365);
+  const costFor = (advance: number) =>
+    round2(interestFor(advance) + paypalFeeAmount + platformFeeAmount);
+
+  // The advance is capped so that advance + total cost never exceeds the invoice amount.
+  // Without this cap, a high advance % (e.g. 90%) on a small invoice makes the supplier
+  // owe money at settlement ("You receive when the buyer pays" goes negative).
+  let advanceAmount: number;
+  if (terms.storedAdvanceAmount !== undefined && terms.storedAdvanceAmount !== null) {
+    advanceAmount = terms.storedAdvanceAmount;
+  } else {
+    const requestedAdvance = round2(terms.amount * terms.advancePct);
+    const interestFactor = (FINANCIER_INTEREST_APR * daysToDue) / 365;
+    const maxAdvance = round2(
+      Math.floor(
+        ((terms.amount - paypalFeeAmount - platformFeeAmount) / (1 + interestFactor)) * 100,
+      ) / 100,
+    );
+    advanceAmount = Math.max(0, Math.min(requestedAdvance, maxAdvance));
+    // Safety net for rounding of the interest amount.
+    while (advanceAmount > 0 && round2(terms.amount - advanceAmount - costFor(advanceAmount)) < 0) {
+      advanceAmount = round2(advanceAmount - 0.01);
+    }
+  }
+
+  const interestAmount = interestFor(advanceAmount);
   const calculatedTotalCost = round2(interestAmount + paypalFeeAmount + platformFeeAmount);
   const totalCost = terms.storedTotalCost ?? calculatedTotalCost;
   const supplierFinalPayment = round2(terms.amount - advanceAmount - totalCost);
