@@ -15,13 +15,6 @@ import {
 import { requireRole } from "@/lib/guard";
 import { createBuyerToken } from "@/lib/buyer-token";
 
-function normalizeCompanyName(name: string): string {
-  return name
-    .toLocaleLowerCase()
-    .replace(/\b(?:limited|ltd)\b/g, "")
-    .replace(/[^a-z0-9]/g, "");
-}
-
 export const dynamic = "force-dynamic";
 
 export async function GET() {
@@ -130,12 +123,7 @@ export async function POST(request: Request) {
   const demoCompanyNumber = process.env.DEMO_BUYER_COMPANY_NUMBER?.trim() ?? "";
   let buyerData;
   if (!formCompanyNumber && demoCompanyNumber) {
-    const demoBuyerData = await lookupBuyer({ name: String(buyerName), companyNumber: demoCompanyNumber });
-    const namesMatch = demoBuyerData.source === "companies_house" && demoBuyerData.found &&
-      normalizeCompanyName(String(buyerName)) === normalizeCompanyName(demoBuyerData.companyName ?? "");
-    buyerData = namesMatch
-      ? demoBuyerData
-      : await lookupBuyer({ name: String(buyerName) });
+    buyerData = await lookupBuyer({ name: String(buyerName), companyNumber: demoCompanyNumber });
   } else {
     buyerData = await lookupBuyer({
       name: String(buyerName),
@@ -227,15 +215,22 @@ export async function POST(request: Request) {
   const buyerFacts = buyerData.signals.length > 0
     ? buyerData.signals.join("; ")
     : "No public filing signals were available";
+  const numberRejectedSentence = buyerData.numberRejected
+    ? "Company number provided did not match the buyer named on the invoice and was ignored."
+    : "";
   const aiNote = await askGemini(
     `Explain only these four things to a small business owner in plain English, with no markdown: (a) what the SME receives now, (b) what the SME receives when the buyer pays, (c) the total cost, and (d) one short sentence about these buyer facts: ${buyerFacts}. ` +
       `The SME receives GBP ${estimatedMoney.advanceAmount.toFixed(2)} now, GBP ${estimatedMoney.supplierFinalPayment.toFixed(2)} when the buyer pays, and the total cost is GBP ${estimatedMoney.totalCost.toFixed(2)}. ` +
       `Do not say buyer risk or late payments changed the advance rate or price. End exactly with: ${buyerDataLabel}`,
   );
-  const explanation = aiNote ??
-    `The SME receives GBP ${estimatedMoney.advanceAmount.toFixed(2)} now and GBP ${estimatedMoney.supplierFinalPayment.toFixed(2)} when the buyer pays; total cost is GBP ${estimatedMoney.totalCost.toFixed(2)}. Buyer facts: ${buyerFacts}. ${buyerDataLabel}`;
   const adjustmentLabel = buyerRisk.adjustment >= 0 ? `+${buyerRisk.adjustment}` : String(buyerRisk.adjustment);
   const buyerScoreExplanation = `Rule score ${ruleScore}, AI adjustment ${adjustmentLabel} = ${finalCreditScore}. ${buyerRisk.reason} (simulated demo score, not a credit rating).`;
+  const explanationWithoutSource = (aiNote ??
+    `The SME receives GBP ${estimatedMoney.advanceAmount.toFixed(2)} now and GBP ${estimatedMoney.supplierFinalPayment.toFixed(2)} when the buyer pays; total cost is GBP ${estimatedMoney.totalCost.toFixed(2)}. Buyer facts: ${buyerFacts}.`)
+    .replace(/\s*Buyer data: (?:Companies House|simulated \(no match found\))\.?\s*$/, "");
+  const explanation = [explanationWithoutSource, numberRejectedSentence, buyerScoreExplanation, buyerDataLabel]
+    .filter(Boolean)
+    .join(" ");
 
   const status = risk.decision === "declined" ? "rejected" : "uploaded";
   const buyerToken = status === "uploaded" ? createBuyerToken() : null;
@@ -274,7 +269,7 @@ export async function POST(request: Request) {
       (status === "rejected"
         ? `AI risk score ${risk.score}/100 (${risk.label}): below minimum threshold, funding declined.`
         : `Invoice created and sent via PayPal Invoicing (${paypalResult.mode}). AI risk score ${risk.score}/100 (${risk.label}).`) +
-      ` AI explanation: ${explanation} ${buyerScoreExplanation}` +
+      ` AI explanation: ${explanation}` +
       (body.documentCheck?.mismatch === true && typeof body.documentCheck.details === "string"
         ? ` Document mismatch: ${body.documentCheck.details}`
         : "") +

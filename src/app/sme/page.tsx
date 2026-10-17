@@ -297,7 +297,7 @@ export default function DashboardPage() {
               <Field label="Buyer name">
                 <input required value={form.buyerName} onChange={(e) => setForm({ ...form, buyerName: e.target.value })} className="input" placeholder="Buyer name" />
               </Field>
-              <Field label="Buyer company number (optional)">
+              <Field label="Buyer company number (optional; must match buyer name on invoice)">
                 <input value={form.buyerCompanyNumber} onChange={(e) => setForm({ ...form, buyerCompanyNumber: e.target.value })} className="input" placeholder="Company number" />
               </Field>
               <Field label="Buyer email">

@@ -1,6 +1,7 @@
 export type BuyerCompanyLookup = {
   source: "companies_house" | "simulated";
   found: boolean;
+  numberRejected: boolean;
   companyName: string | null;
   companyNumber: string | null;
   status: string | null;
@@ -42,6 +43,15 @@ function isTrue(value: unknown): boolean {
   return value === true;
 }
 
+function normalizeCompanyName(name: string): string {
+  return name
+    .toLocaleLowerCase()
+    .replace(/\blimited\b/g, "ltd")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function calculateAgeMonths(dateOfCreation: unknown): number | null {
   const creationDate = text(dateOfCreation);
   if (!creationDate) return null;
@@ -54,10 +64,11 @@ function calculateAgeMonths(dateOfCreation: unknown): number | null {
   return Math.max(0, months);
 }
 
-function simulatedResult(): BuyerCompanyLookup {
+function simulatedResult(numberRejected = false): BuyerCompanyLookup {
   return {
     source: "simulated",
     found: false,
+    numberRejected,
     companyName: null,
     companyNumber: null,
     status: null,
@@ -76,27 +87,38 @@ export async function lookupBuyer(params: { name: string; companyNumber?: string
 
   try {
     const companyNumber = params.companyNumber?.trim();
-    const url = companyNumber
-      ? `${API_BASE}/company/${encodeURIComponent(companyNumber)}`
-      : `${API_BASE}/search/companies?q=${encodeURIComponent(params.name)}&items_per_page=5`;
-    const response = await fetch(url, {
+    const request = async (url: string) => fetch(url, {
       headers: { Authorization: `Basic ${Buffer.from(`${key}:`).toString("base64")}` },
-      cache: "no-store",
+      cache: "no-store" as RequestCache,
       signal: AbortSignal.timeout(5000),
     });
-    if (!response.ok) return simulatedResult();
-
-    const responseBody: unknown = await response.json();
-    let company: CompanyRecord;
+    let company: CompanyRecord | null = null;
+    let numberRejected = false;
     if (companyNumber) {
-      company = record(responseBody);
-    } else {
-      const items = record(responseBody).items;
-      if (!Array.isArray(items)) return simulatedResult();
-      const exactMatch = items.find((item) =>
-        text(record(item).title)?.toLocaleLowerCase() === params.name.trim().toLocaleLowerCase()
-      );
-      if (!exactMatch) return simulatedResult();
+      const response = await request(`${API_BASE}/company/${encodeURIComponent(companyNumber)}`);
+      if (response.ok) {
+        const profile = record(await response.json());
+        const registeredName = text(profile.company_name);
+        if (registeredName && normalizeCompanyName(registeredName) === normalizeCompanyName(params.name)) {
+          company = profile;
+        } else {
+          numberRejected = true;
+        }
+      } else {
+        return simulatedResult();
+      }
+    }
+
+    if (!company) {
+      const response = await request(`${API_BASE}/search/companies?q=${encodeURIComponent(params.name)}&items_per_page=5`);
+      if (!response.ok) return simulatedResult(numberRejected);
+      const items = record(await response.json()).items;
+      if (!Array.isArray(items)) return simulatedResult(numberRejected);
+      const exactMatch = items.find((item) => {
+        const candidate = record(item);
+        return normalizeCompanyName(text(candidate.title) ?? text(candidate.company_name) ?? "") === normalizeCompanyName(params.name);
+      });
+      if (!exactMatch) return simulatedResult(numberRejected);
       company = record(exactMatch);
     }
 
@@ -120,6 +142,7 @@ export async function lookupBuyer(params: { name: string; companyNumber?: string
     return {
       source: "companies_house",
       found: true,
+      numberRejected,
       companyName: text(company.company_name) ?? text(company.title),
       companyNumber: text(company.company_number) ?? companyNumber ?? null,
       status,
