@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/guard";
 import { extractInvoiceFromFile } from "@/lib/gemini";
+import { signDocToken } from "@/lib/doc-token";
+import { createHash } from "node:crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,10 +36,26 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await extractInvoiceFromFile(Buffer.from(await file.arrayBuffer()), file.type.toLowerCase());
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const result = await extractInvoiceFromFile(fileBuffer, file.type.toLowerCase());
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
 
-    return NextResponse.json({ extracted: result.data, source: result.source });
+    let docToken: string;
+    try {
+      docToken = signDocToken({
+        buyerName: result.data.buyerName,
+        supplierName: result.data.supplierName,
+        amount: result.data.amount,
+        currency: result.data.currency,
+        dueDate: result.data.dueDate,
+        fileSha256: createHash("sha256").update(fileBuffer).digest("hex"),
+        live: result.source === "gemini",
+      });
+    } catch {
+      return NextResponse.json({ error: "Document verification is unavailable." }, { status: 503 });
+    }
+
+    return NextResponse.json({ extracted: result.data, source: result.source, docToken });
   } catch {
     return NextResponse.json({ error: "Could not read the uploaded file." }, { status: 400 });
   }
