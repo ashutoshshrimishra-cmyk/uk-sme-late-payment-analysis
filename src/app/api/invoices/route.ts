@@ -14,6 +14,7 @@ import {
 } from "@/lib/companies-house";
 import { requireRole } from "@/lib/guard";
 import { createBuyerToken } from "@/lib/buyer-token";
+import { getDocumentMismatches, verifyDocToken } from "@/lib/doc-token";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +96,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "dueDate is invalid" }, { status: 400 });
   }
 
+  const document = verifyDocToken(typeof body.docToken === "string" ? body.docToken : "");
+  if (!document) {
+    return NextResponse.json({ error: "Upload and verify an invoice document before creating the invoice." }, { status: 400 });
+  }
+  if (document.live) {
+    const mismatches = getDocumentMismatches(document, {
+      buyerName: String(buyerName),
+      supplierName: String(smeName),
+      amount: amountNum,
+      dueDate: due,
+    });
+    if (mismatches.length > 0) {
+      return NextResponse.json({ error: `Invoice ${mismatches.join(", ")} does not match the uploaded document.` }, { status: 400 });
+    }
+  }
+
   const dueDayStart = new Date(due);
   dueDayStart.setUTCHours(0, 0, 0, 0);
   const dueDayEnd = new Date(dueDayStart.getTime() + 24 * 60 * 60 * 1000);
@@ -122,11 +139,12 @@ export async function POST(request: Request) {
   const formCompanyNumber = typeof body.buyerCompanyNumber === "string" ? body.buyerCompanyNumber.trim() : "";
   const demoCompanyNumber = process.env.DEMO_BUYER_COMPANY_NUMBER?.trim() ?? "";
   let buyerData;
+  const buyerNameForLookup = document.live ? document.buyerName : String(buyerName);
   if (!formCompanyNumber && demoCompanyNumber) {
-    buyerData = await lookupBuyer({ name: String(buyerName), companyNumber: demoCompanyNumber });
+    buyerData = await lookupBuyer({ name: buyerNameForLookup, companyNumber: demoCompanyNumber });
   } else {
     buyerData = await lookupBuyer({
-      name: String(buyerName),
+      name: buyerNameForLookup,
       companyNumber: formCompanyNumber || undefined,
     });
   }
@@ -215,6 +233,7 @@ export async function POST(request: Request) {
   const buyerFacts = buyerData.signals.length > 0
     ? buyerData.signals.join("; ")
     : "No public filing signals were available";
+  const documentVerificationNote = document.live ? "" : "Invoice document was not machine-verified.";
   const numberRejectedSentence = buyerData.numberRejected
     ? "Company number provided did not match the buyer named on the invoice and was ignored."
     : "";
@@ -228,7 +247,7 @@ export async function POST(request: Request) {
   const explanationWithoutSource = (aiNote ??
     `The SME receives GBP ${estimatedMoney.advanceAmount.toFixed(2)} now and GBP ${estimatedMoney.supplierFinalPayment.toFixed(2)} when the buyer pays; total cost is GBP ${estimatedMoney.totalCost.toFixed(2)}. Buyer facts: ${buyerFacts}.`)
     .replace(/\s*Buyer data: (?:Companies House|simulated \(no match found\))\.?\s*$/, "");
-  const explanation = [explanationWithoutSource, numberRejectedSentence, buyerScoreExplanation, buyerDataLabel]
+  const explanation = [explanationWithoutSource, numberRejectedSentence, documentVerificationNote, buyerScoreExplanation, buyerDataLabel]
     .filter(Boolean)
     .join(" ");
 

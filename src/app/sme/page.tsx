@@ -91,6 +91,7 @@ export default function DashboardPage() {
     data: ExtractedInvoice;
     source: "gemini" | "mock";
   } | null>(null);
+  const [docToken, setDocToken] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const documentMismatchDetails: string[] = [];
@@ -108,19 +109,21 @@ export default function DashboardPage() {
   async function extractFile(file: File) {
     setExtracting(true);
     setLastResult(null);
+    setDocToken(null);
     const upload = new FormData();
     upload.append("file", file);
     try {
       const response = await fetch("/api/extract", { method: "POST", body: upload });
-      const result: { extracted?: ExtractedInvoice; source?: "gemini" | "mock"; error?: string } =
+      const result: { extracted?: ExtractedInvoice; source?: "gemini" | "mock"; docToken?: string; error?: string } =
         await response.json();
-      if (!response.ok || !result.extracted || !result.source) {
+      if (!response.ok || !result.extracted || !result.source || !result.docToken) {
         setLastResult({ error: result.error ?? "Could not extract invoice details." });
         return;
       }
 
       const extracted = result.extracted;
       setExtractedDocument({ data: extracted, source: result.source });
+      setDocToken(result.docToken);
       setForm((current) => ({
         ...current,
         smeName: extracted.supplierName,
@@ -185,6 +188,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          docToken,
           ...(documentMismatchDetails.length > 0
             ? { documentCheck: { mismatch: true, details: documentMismatchDetails.join(" ") } }
             : {}),
@@ -200,6 +204,7 @@ export default function DashboardPage() {
         setBuyerLink(data.buyerToken ? { invoiceId: data.invoice.id, token: data.buyerToken } : null);
         setForm({ ...EMPTY_FORM });
         setExtractedDocument(null);
+        setDocToken(null);
         await loadInvoices();
       }
 
