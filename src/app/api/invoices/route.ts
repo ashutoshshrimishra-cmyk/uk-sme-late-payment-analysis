@@ -6,7 +6,7 @@ import { assessRisk } from "@/lib/risk";
 import { calculateInvoiceMoney } from "@/lib/pricing";
 import { createAndSendInvoice } from "@/lib/paypal";
 import { getOrCreatePoolState } from "@/lib/pool";
-import { askGemini } from "@/lib/gemini";
+import { askGemini, assessBuyerRisk } from "@/lib/gemini";
 import {
   calculateBuyerCreditScore,
   lookupBuyer,
@@ -14,6 +14,13 @@ import {
 } from "@/lib/companies-house";
 import { requireRole } from "@/lib/guard";
 import { createBuyerToken } from "@/lib/buyer-token";
+
+function normalizeCompanyName(name: string): string {
+  return name
+    .toLocaleLowerCase()
+    .replace(/\b(?:limited|ltd)\b/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
 
 export const dynamic = "force-dynamic";
 
@@ -119,12 +126,39 @@ export async function POST(request: Request) {
   }
 
   // Find or create the buyer.
-  const buyerData = await lookupBuyer({
-    name: String(buyerName),
-    companyNumber: typeof body.buyerCompanyNumber === "string" ? body.buyerCompanyNumber : undefined,
-  });
-  const creditScore = calculateBuyerCreditScore(buyerData);
+  const formCompanyNumber = typeof body.buyerCompanyNumber === "string" ? body.buyerCompanyNumber.trim() : "";
+  const demoCompanyNumber = process.env.DEMO_BUYER_COMPANY_NUMBER?.trim() ?? "";
+  let buyerData;
+  if (!formCompanyNumber && demoCompanyNumber) {
+    const demoBuyerData = await lookupBuyer({ name: String(buyerName), companyNumber: demoCompanyNumber });
+    const namesMatch = demoBuyerData.source === "companies_house" && demoBuyerData.found &&
+      normalizeCompanyName(String(buyerName)) === normalizeCompanyName(demoBuyerData.companyName ?? "");
+    buyerData = namesMatch
+      ? demoBuyerData
+      : await lookupBuyer({ name: String(buyerName) });
+  } else {
+    buyerData = await lookupBuyer({
+      name: String(buyerName),
+      companyNumber: formCompanyNumber || undefined,
+    });
+  }
+  const ruleScore = calculateBuyerCreditScore(buyerData);
   const latePaymentRate = SIMULATED_BUYER_LATE_PAYMENT_RATE.toFixed(4);
+  const buyerRisk = await assessBuyerRisk({
+    company: buyerData,
+    ruleScore,
+    latePaymentRate: { value: SIMULATED_BUYER_LATE_PAYMENT_RATE, simulated: true },
+    invoice: {
+      amount: amountNum,
+      currency: "GBP",
+      issueDate: new Date().toISOString(),
+      dueDate: due.toISOString(),
+      supplierName: String(smeName),
+      buyerName: String(buyerName),
+      description: String(description || "").slice(0, 300),
+    },
+  });
+  const finalCreditScore = Math.max(0, Math.min(100, ruleScore + buyerRisk.adjustment));
 
   let buyer = (await db.select().from(buyers).where(eq(buyers.email, String(buyerEmail))))[0];
   if (!buyer) {
@@ -133,7 +167,7 @@ export async function POST(request: Request) {
       .values({
         name: String(buyerName),
         email: String(buyerEmail),
-        creditScore,
+        creditScore: finalCreditScore,
         latePaymentRate,
         totalInvoicesFinanced: 0,
       })
@@ -141,7 +175,7 @@ export async function POST(request: Request) {
   } else {
     [buyer] = await db
       .update(buyers)
-      .set({ creditScore, latePaymentRate })
+      .set({ creditScore: finalCreditScore, latePaymentRate })
       .where(eq(buyers.id, buyer.id))
       .returning();
   }
@@ -200,6 +234,8 @@ export async function POST(request: Request) {
   );
   const explanation = aiNote ??
     `The SME receives GBP ${estimatedMoney.advanceAmount.toFixed(2)} now and GBP ${estimatedMoney.supplierFinalPayment.toFixed(2)} when the buyer pays; total cost is GBP ${estimatedMoney.totalCost.toFixed(2)}. Buyer facts: ${buyerFacts}. ${buyerDataLabel}`;
+  const adjustmentLabel = buyerRisk.adjustment >= 0 ? `+${buyerRisk.adjustment}` : String(buyerRisk.adjustment);
+  const buyerScoreExplanation = `Rule score ${ruleScore}, AI adjustment ${adjustmentLabel} = ${finalCreditScore}. ${buyerRisk.reason} (simulated demo score, not a credit rating).`;
 
   const status = risk.decision === "declined" ? "rejected" : "uploaded";
   const buyerToken = status === "uploaded" ? createBuyerToken() : null;
@@ -238,7 +274,7 @@ export async function POST(request: Request) {
       (status === "rejected"
         ? `AI risk score ${risk.score}/100 (${risk.label}): below minimum threshold, funding declined.`
         : `Invoice created and sent via PayPal Invoicing (${paypalResult.mode}). AI risk score ${risk.score}/100 (${risk.label}).`) +
-      ` AI explanation: ${explanation}` +
+      ` AI explanation: ${explanation} ${buyerScoreExplanation}` +
       (body.documentCheck?.mismatch === true && typeof body.documentCheck.details === "string"
         ? ` Document mismatch: ${body.documentCheck.details}`
         : "") +

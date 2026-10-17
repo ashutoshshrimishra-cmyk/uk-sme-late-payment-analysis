@@ -4,7 +4,11 @@ export type BuyerCompanyLookup = {
   companyName: string | null;
   companyNumber: string | null;
   status: string | null;
+  ageMonths: number | null;
   ageYears: number | null;
+  accountsOverdue: boolean;
+  confirmationStatementOverdue: boolean;
+  hasInsolvencyHistory: boolean;
   signals: string[];
 };
 
@@ -38,21 +42,16 @@ function isTrue(value: unknown): boolean {
   return value === true;
 }
 
-function calculateAgeYears(dateOfCreation: unknown): number | null {
+function calculateAgeMonths(dateOfCreation: unknown): number | null {
   const creationDate = text(dateOfCreation);
   if (!creationDate) return null;
   const parsed = new Date(`${creationDate}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return null;
 
   const today = new Date();
-  let years = today.getUTCFullYear() - parsed.getUTCFullYear();
-  if (
-    today.getUTCMonth() < parsed.getUTCMonth() ||
-    (today.getUTCMonth() === parsed.getUTCMonth() && today.getUTCDate() < parsed.getUTCDate())
-  ) {
-    years -= 1;
-  }
-  return Math.max(0, years);
+  let months = (today.getUTCFullYear() - parsed.getUTCFullYear()) * 12 + today.getUTCMonth() - parsed.getUTCMonth();
+  if (today.getUTCDate() < parsed.getUTCDate()) months -= 1;
+  return Math.max(0, months);
 }
 
 function simulatedResult(): BuyerCompanyLookup {
@@ -62,7 +61,11 @@ function simulatedResult(): BuyerCompanyLookup {
     companyName: null,
     companyNumber: null,
     status: null,
+    ageMonths: null,
     ageYears: null,
+    accountsOverdue: false,
+    confirmationStatementOverdue: false,
+    hasInsolvencyHistory: false,
     signals: [],
   };
 }
@@ -101,7 +104,8 @@ export async function lookupBuyer(params: { name: string; companyNumber?: string
     const confirmationOverdue = isTrue(record(company.confirmation_statement).overdue);
     const hasInsolvencyHistory = isTrue(company.has_insolvency_history);
     const status = text(company.company_status);
-    const ageYears = calculateAgeYears(company.date_of_creation);
+    const ageMonths = calculateAgeMonths(company.date_of_creation);
+    const ageYears = ageMonths === null ? null : Math.floor(ageMonths / 12);
     const signals: string[] = [];
 
     if (status?.toLocaleLowerCase() === "active") {
@@ -116,10 +120,14 @@ export async function lookupBuyer(params: { name: string; companyNumber?: string
     return {
       source: "companies_house",
       found: true,
-      companyName: text(company.company_name) ?? text(company.title) ?? params.name.trim(),
+      companyName: text(company.company_name) ?? text(company.title),
       companyNumber: text(company.company_number) ?? companyNumber ?? null,
       status,
+      ageMonths,
       ageYears,
+      accountsOverdue,
+      confirmationStatementOverdue: confirmationOverdue,
+      hasInsolvencyHistory,
       signals,
     };
   } catch {
