@@ -18,7 +18,7 @@ export default function LoginForm({
   initialRole: Role;
 }) {
   const [role, setRole] = useState(initialRole);
-  const [passcode, setPasscode] = useState("");
+  const [passcode, setPasscode] = useState("alix");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
