@@ -185,7 +185,7 @@ export async function extractInvoiceFromFile(buffer: Buffer, mime: string): Prom
     '{"supplierName":"string","buyerName":"string","buyerEmail":"string","invoiceNumber":"string","amount":number,"currency":"3-letter ISO code","dueDate":"YYYY-MM-DD","description":"string","confidence":number}. ' +
     "Use an empty string for buyerEmail or description if unavailable. Do not include markdown or extra text.";
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const response = await fetch(url, {
         method: "POST",
@@ -195,11 +195,11 @@ export async function extractInvoiceFromFile(buffer: Buffer, mime: string): Prom
           generationConfig: { responseMimeType: "application/json" },
         }),
         cache: "no-store",
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(30000),
       });
 
       if (!response.ok) {
-        if ((response.status === 503 || response.status === 429) && attempt === 0) {
+        if ((response.status === 503 || response.status === 429) && attempt < 3) {
           await new Promise((resolve) => setTimeout(resolve, 700));
           continue;
         }
@@ -222,7 +222,7 @@ export async function extractInvoiceFromFile(buffer: Buffer, mime: string): Prom
       if (!isExtractedInvoice(parsed)) return { ok: false, error: "Gemini returned invalid invoice fields." };
       return { ok: true, data: parsed, source: "gemini" };
     } catch (error) {
-      if (attempt === 1) {
+      if (attempt === 3) {
         return { ok: false, error: error instanceof Error ? error.message : "Gemini invoice extraction failed." };
       }
       await new Promise((resolve) => setTimeout(resolve, 700));
